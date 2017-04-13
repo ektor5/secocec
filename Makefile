@@ -6,7 +6,7 @@ obj-m += seco-cec.o
 
 KERNELDIR ?= /lib/modules/$(shell uname -r)/build
 
-all:	modules 
+all:	modules
 
 modules:
 	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules
@@ -18,14 +18,18 @@ clean:
 	rm -rf *.o *~ core .depend .*.cmd *.ko *.mod.c .tmp_versions \
 	modules.order Module.symvers *.tmp *.log
 
-_src = secocec.c
+_src = seco-cec.c
 
 checkpatch:
-	checkpatch.pl --no-tree --show-types \
+	$(KERNELDIR)/scripts/checkpatch.pl --no-tree --show-types \
 		--ignore LINE_CONTINUATIONS \
-		--terse -f $(_src) Makefile
+		--terse -f $(PWD)/$(_src) Makefile
 
 checkpatch2:
-	checkpatch.pl --no-tree --show-types \
+	$(KERNELDIR)/scripts/checkpatch.pl --no-tree --show-types \
 		--ignore LONG_LINE,LINE_CONTINUATIONS \
-		--terse -f $(_src) Makefile
+		--terse -f $(PWD)/$(_src) Makefile
+
+Lindent:
+	$(KERNELDIR)/scripts/Lindent \
+		$(PWD)/$(_src)
