@@ -15,14 +15,14 @@
  *
  * ======================================================================
  */
-
 #include <linux/io.h>
 #include <linux/ioport.h>
 #include <linux/mm.h>
 #include <linux/interrupt.h>
 #include <linux/gpio.h>
 #include <linux/i2c.h>
-#include <linux/pinctrl/consumer.h>
+#include <linux/acpi.h>
+#include <linux/gpio/consumer.h>
 #include <linux/sched.h>
 #include <linux/fs.h>
 #include <linux/module.h>
@@ -32,7 +32,6 @@
 // CEC Framework
 #include <media/cec.h>
 
-#define SECOCEC_IRQ_GPIO 42	// TODO change this
 #define SECOCEC_MAX_ADDRS 1
 #define SECOCEC_DEV_NAME "secocec"
 
@@ -41,7 +40,6 @@ struct secocec_data {
 	struct i2c_client *i2c_cec;
 	struct cec_adapter *cec_adap;
 	int irq;
-	int irq_gpio;
 
 	struct mutex read_lock;	//config lock, not used for now
 	struct mutex write_lock;
@@ -135,24 +133,66 @@ static s32 seco_smbus_read_byte_data_check(struct i2c_client *client,
 	return -1;
 }
 
+static const struct acpi_gpio_params irq_gpios = { 0, 0, false };	// crs_entry_index, line_index, active_low
+
+static const struct acpi_gpio_mapping secocec_acpi_gpios[] = {
+	{"irq-gpios", &irq_gpios, 1},
+	{},
+};
+
+static int secocec_acpi_probe(struct secocec_data *sdev)
+{
+	struct device *dev = sdev->dev;
+	LIST_HEAD(resources);
+	const struct acpi_gpio_mapping *gpio_mapping = secocec_acpi_gpios;
+	const struct acpi_device_id *id;
+	struct gpio_desc *gpio;
+	int ret;
+
+	/* Retrieve GPIO data, if _DSD is present */
+	id = acpi_match_device(dev->driver->acpi_match_table, dev);
+	if (id)
+		gpio_mapping =
+		    (const struct acpi_gpio_mapping *)id->driver_data;
+
+	ret = acpi_dev_add_driver_gpios(ACPI_COMPANION(dev), gpio_mapping);
+	if (ret) {
+		dev_err(dev, "Cannot add gpio irq to the driver");
+		return ret;
+	}
+
+	gpio = devm_gpiod_get_optional(dev, "irq", GPIOF_IN);
+
+	if (IS_ERR(gpio)) {
+		dev_err(dev, "Cannot request interrupt gpio");
+		return PTR_ERR(gpio);
+	}
+
+	sdev->irq = gpiod_to_irq(gpio);
+
+	acpi_dev_free_resource_list(&resources);
+
+	return 0;
+
+}
+
 static int secocec_probe(struct i2c_client *client,
 			 const struct i2c_device_id *id)
 {
 	struct device *dev = &client->dev;
 	struct secocec_data *secocec = secocec_data_init(client);
-	int gpio = SECOCEC_IRQ_GPIO;
-	unsigned long IRQflags;
 	u16 rev;
 	int ret;
 	u8 opts;
-	struct pinctrl *pinctrl;
 
 	/* Check if the adapter supports the needed features */
-	if (!i2c_check_functionality(client->adapter, I2C_FUNC_SMBUS_BYTE_DATA))
-		return -EIO;
+	if (!i2c_check_functionality(client->adapter, I2C_FUNC_SMBUS_BYTE_DATA)) {
+		ret = -EIO;
+		goto err;
+	}
 
 	dev_dbg(dev, "detecting secocec client on address 0x%x\n",
-		client->addr << 1);
+		client->addr);
 
 	/* TODO i2c access to secocec? */
 	rev = seco_smbus_read_byte_data_check(client, 0xea, false) << 8 |
@@ -165,48 +205,37 @@ static int secocec_probe(struct i2c_client *client,
 		    seco_smbus_read_byte_data_check(client, 0xeb, false);
 	}
 	if (rev != 0x2012) {
-		dev_dbg(dev, "not an secocec on address 0x%x (rev=0x%04x)\n",
-			client->addr << 1, rev);
-		return -ENODEV;
-	}
-	//request GPIO IRQ
-	ret = gpio_is_valid(gpio);
-	if (ret < 0) {
-		dev_err(dev, "gpio %d is invalid", gpio);
-		return -EINVAL;
-	}
-	//TODO check if this is ok
-	pinctrl = devm_pinctrl_get_select_default(dev);
-	ret = devm_gpio_request_one(dev, gpio, GPIOF_IN, "secocec_gpio");
-	if (ret < 0) {
-		dev_err(dev, "Cannot request gpio %d", gpio);
-		return -ENODEV;
-	}
-
-	secocec->irq_gpio = gpio;
-
-	secocec->irq = gpio_to_irq(gpio);
-	if (!secocec->irq) {
-		dev_err(dev, "Cannot request gpio for IRQ %d", gpio);
+		dev_err(dev, "not an secocec on address 0x%x (rev=0x%04x)\n",
+			client->addr, rev);
 		ret = -ENODEV;
-		goto err_free_gpio;
+		goto err;
+	}
+	//request GPIO IRQ via acpi
+	//TODO check if this is ok
+	ret = secocec_acpi_probe(secocec);
+	if (ret) {
+		dev_err(dev, "Cannot assign gpio to IRQ");
+		ret = -ENODEV;
+		goto err;
 	}
 
-	IRQflags = IRQF_SHARED;
-	ret = request_irq(secocec->irq,	// The interrupt number requested
-			  // The pointer to the handler function below
-			  (irq_handler_t) secocec_irq_handler,
-			  // Use the custom kernel param to set interrupt type
-			  IRQflags,
-			  // Used in /proc/interrupts to identify the owner
-			  dev_name(&client->dev),
-			  // The *dev_id for shared interrupt lines
-			  dev);
+	dev_dbg(dev, "irq assigned: %d\n", secocec->irq);
+	ret = devm_request_irq(dev,
+			       // The interrupt number requested
+			       secocec->irq,
+			       // The pointer to the handler function below
+			       (irq_handler_t) secocec_irq_handler,
+			       // Use the custom kernel param to set interrupt type
+			       IRQF_SHARED,
+			       // Used in /proc/interrupts to identify the owner
+			       dev_name(&client->dev),
+			       // The *dev_id for shared interrupt lines
+			       dev);
 
 	if (!ret) {
 		dev_err(dev, "Cannot request IRQ %d", secocec->irq);
 		ret = -EIO;
-		goto err_free_gpio;
+		goto err;
 	}
 	//allocate cec
 	opts = CEC_CAP_TRANSMIT |
@@ -215,27 +244,24 @@ static int secocec_probe(struct i2c_client *client,
 	secocec->cec_adap = cec_allocate_adapter(&secocec_cec_adap_ops,
 						 secocec,
 						 dev_name(dev),
-						 opts,
-						 SECOCEC_MAX_ADDRS);
+						 opts, SECOCEC_MAX_ADDRS);
 	ret = PTR_ERR_OR_ZERO(secocec->cec_adap);
 	if (ret)
-		goto err_free_irq;
+		goto err_delete_adapter;
 
 	ret = cec_register_adapter(secocec->cec_adap, dev);
 	if (ret)
 		goto err_delete_adapter;
 
 	dev_dbg(dev, "%s found @ 0x%x (%s)\n", client->name,
-		client->addr << 1, client->adapter->name);
+		client->addr, client->adapter->name);
 
 	return ret;
 
 err_delete_adapter:
 	cec_delete_adapter(secocec->cec_adap);
-err_free_irq:
-	free_irq(secocec->irq, &client->dev);
-err_free_gpio:
-	gpio_free(secocec->irq_gpio);
+err:
+	dev_err(dev, "%s device probe failed.\n", dev_name(dev));
 
 	return ret;
 }
@@ -246,12 +272,6 @@ static int secocec_remove(struct i2c_client *client)
 {
 	struct secocec_data *secocec = i2c_get_clientdata(client);
 
-	//free gpio
-	gpio_free(secocec->irq_gpio);
-
-	//free irq
-	free_irq(secocec->irq, &client->dev);
-
 	//release cec
 	cec_delete_adapter(secocec->cec_adap);
 
@@ -260,6 +280,14 @@ static int secocec_remove(struct i2c_client *client)
 
 /* ----------------------------------------------------------------------- */
 
+#ifdef CONFIG_ACPI
+static const struct acpi_device_id secocec_acpi_match[] = {
+	{"secocec", 0},
+	{},
+};
+
+MODULE_DEVICE_TABLE(acpi, secocec_acpi_match);
+#endif
 static struct i2c_device_id secocec_id[] = {
 	{SECOCEC_DEV_NAME, 0},
 	{}
@@ -270,6 +298,7 @@ MODULE_DEVICE_TABLE(i2c, secocec_id);
 static struct i2c_driver secocec_driver = {
 	.driver = {
 		   .name = SECOCEC_DEV_NAME,
+		   .acpi_match_table = ACPI_PTR(secocec_acpi_match),
 		   },
 	.probe = secocec_probe,
 	.remove = secocec_remove,
