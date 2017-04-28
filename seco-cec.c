@@ -69,16 +69,36 @@ static struct secocec_data *secocec_data_init(struct i2c_client *client)
 }
 
 //TODO cec implementation
-static int secocec_adap_enable(struct cec_adapter *adap, bool enable);
-static int secocec_adap_monitor_all_enable(struct cec_adapter *adap,
-					   bool enable);
-static int secocec_adap_log_addr(struct cec_adapter *adap, u8 logical_addr);
-static int secocec_adap_transmit(struct cec_adapter *adap, u8 attempts,
-			  u32 signal_free_time, struct cec_msg *msg);
-static void secocec_adap_status(struct cec_adapter *adap,
-				struct seq_file *file);
+static int secocec_adap_enable(struct cec_adapter *adap, bool enable)
+{
+	return 0;
+}
 
-static int secocec_received(struct cec_adapter *adap, struct cec_msg *msg);
+static int secocec_adap_monitor_all_enable(struct cec_adapter *adap,
+					   bool enable)
+{
+	return 0;
+}
+
+static int secocec_adap_log_addr(struct cec_adapter *adap, u8 logical_addr)
+{
+	return 0;
+}
+
+static int secocec_adap_transmit(struct cec_adapter *adap, u8 attempts,
+				 u32 signal_free_time, struct cec_msg *msg)
+{
+	return 0;
+}
+
+static void secocec_adap_status(struct cec_adapter *adap, struct seq_file *file)
+{
+}
+
+static int secocec_received(struct cec_adapter *adap, struct cec_msg *msg)
+{
+	return 0;
+}
 
 struct cec_adap_ops secocec_cec_adap_ops = {
 	/* Low-level callbacks */
