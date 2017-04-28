@@ -273,7 +273,7 @@ static int secocec_remove(struct i2c_client *client)
 	struct secocec_data *secocec = i2c_get_clientdata(client);
 
 	//release cec
-	cec_delete_adapter(secocec->cec_adap);
+	cec_unregister_adapter(secocec->cec_adap);
 
 	return 0;
 }
