@@ -136,20 +136,22 @@ static irq_handler_t secocec_irq_handler_quick(unsigned int irq, void *dev_id,
 
 }
 
-static s32 seco_smbus_read_byte_data_check(struct i2c_client *client,
-					   u8 command, bool check)
-{
-	union i2c_smbus_data data;
-
-	if (!i2c_smbus_xfer(client->adapter, client->addr, client->flags,
-			    I2C_SMBUS_READ, command,
-			    I2C_SMBUS_BYTE_DATA, &data))
-		return data.byte;
-	if (check)
-		dev_err(&client->dev, "error reading %02x, %02x\n",
-			client->addr, command);
-	return -1;
-}
+/*
+ *static s32 seco_smbus_read_byte_data_check(struct i2c_client *client,
+ *                                           u8 command, bool check)
+ *{
+ *        union i2c_smbus_data data;
+ *
+ *        if (!i2c_smbus_xfer(client->adapter, client->addr, client->flags,
+ *                            I2C_SMBUS_READ, command,
+ *                            I2C_SMBUS_BYTE_DATA, &data))
+ *                return data.byte;
+ *        if (check)
+ *                dev_err(&client->dev, "error reading %02x, %02x\n",
+ *                        client->addr, command);
+ *        return -1;
+ *}
+ */
 
 static const struct acpi_gpio_params irq_gpios = { 0, 0, false };	// crs_entry_index, line_index, active_low
 
@@ -208,9 +210,7 @@ static int secocec_acpi_probe(struct secocec_data *sdev)
 static int secocec_noacpi_probe(struct secocec_data *sdev)
 {
 	struct device *dev = sdev->dev;
-	struct gpio_desc *gpio;
-	//int gpio_irq = GPIOCHIP_SOUTHWEST + GPIO_I2C6_SCL;
-	int gpio_irq = GPIOCHIP_SOUTHWEST + 41;
+	int gpio_irq = GPIOCHIP_SOUTHWEST + GPIO_I2C6_SCL;
 	int irq;
 	int ret;
 
@@ -241,7 +241,7 @@ static int secocec_probe(struct i2c_client *client,
 {
 	struct device *dev = &client->dev;
 	struct secocec_data *secocec = secocec_data_init(client);
-	u16 rev;
+	// u16 rev;
 	int ret;
 	u8 opts;
 
