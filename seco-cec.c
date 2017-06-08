@@ -20,8 +20,8 @@
 #include <linux/mm.h>
 #include <linux/interrupt.h>
 #include <linux/gpio.h>
-#include <linux/i2c.h>
 #include <linux/acpi.h>
+#include <linux/platform_device.h>
 #include <linux/gpio/consumer.h>
 #include <linux/gpio/machine.h>
 #include <linux/gpio.h>
@@ -41,7 +41,7 @@
 
 struct secocec_data {
 	struct device *dev;
-	struct i2c_client *i2c_cec;
+	struct platform_device *pdev;
 	struct cec_adapter *cec_adap;
 	int irq;
 
@@ -53,10 +53,10 @@ struct secocec_data {
 	bool cec_enabled_adap;
 };
 
-static struct secocec_data *secocec_data_init(struct i2c_client *client)
+static struct secocec_data *secocec_data_init(struct platform_device *pdev)
 {
 	struct secocec_data *drvdata;
-	struct device *dev = &client->dev;
+	struct device *dev = &pdev->dev;
 
 	drvdata = devm_kzalloc(dev, sizeof(*drvdata), GFP_KERNEL);
 	if (!drvdata)
@@ -64,7 +64,7 @@ static struct secocec_data *secocec_data_init(struct i2c_client *client)
 
 	dev_set_drvdata(dev, drvdata);
 
-	drvdata->i2c_cec = client;
+	drvdata->pdev = pdev;
 	drvdata->dev = dev;
 
 	mutex_init(&drvdata->read_lock);
@@ -121,7 +121,7 @@ static irq_handler_t secocec_irq_handler(unsigned int irq, void *dev_id,
 					 struct pt_regs *regs)
 {
 	//TODO irq handler
-	//
+	
 	printk("SECO CEC Interrupt Handled");
 
 	return (irq_handler_t) IRQ_HANDLED;
@@ -131,13 +131,13 @@ static irq_handler_t secocec_irq_handler_quick(unsigned int irq, void *dev_id,
 					 struct pt_regs *regs)
 {
 	//TODO irq handler
-	//
+	
 	return (irq_handler_t) IRQ_WAKE_THREAD;
 
 }
 
 /*
- *static s32 seco_smbus_read_byte_data_check(struct i2c_client *client,
+ *static s32 seco_smbus_read_byte_data_check(struct platform_driver *drv
  *                                           u8 command, bool check)
  *{
  *        union i2c_smbus_data data;
@@ -163,24 +163,27 @@ static const struct acpi_gpio_mapping secocec_acpi_gpios[] = {
 static int secocec_acpi_probe(struct secocec_data *sdev)
 {
 	struct device *dev = sdev->dev;
+	struct platform_device *pdev = sdev->pdev;
 	LIST_HEAD(resources);
 	const struct acpi_gpio_mapping *gpio_mapping = secocec_acpi_gpios;
 	const struct acpi_device_id *id;
 	struct gpio_desc *gpio;
 	int ret;
+	int irq;
 
-	/* Retrieve GPIO data, if _DSD is present */
+	/* Retrieve GPIO data from ACPI, if _DSD is present */
 	id = acpi_match_device(dev->driver->acpi_match_table, dev);
 	if (id) {
 		dev_dbg(dev, "_DSD Found, using ACPI package");
 		gpio_mapping =
 		    (const struct acpi_gpio_mapping *)id->driver_data;
+	} else {
+		dev_dbg(dev, "no _DSD Found, using package");
 	}
 
 	ret = acpi_dev_add_driver_gpios(ACPI_COMPANION(dev), gpio_mapping);
 	if (ret) {
-		dev_err(dev, "Cannot add gpio irq to the driver");
-		return ret;
+		dev_dbg(dev, "Cannot add gpio irq data to the driver");
 	}
 
 	gpio = devm_gpiod_get(dev, "irq-gpios", GPIOF_IN);
@@ -189,17 +192,22 @@ static int secocec_acpi_probe(struct secocec_data *sdev)
 		return PTR_ERR(gpio);
 	}
 
-	sdev->irq = sdev->i2c_cec->irq;
-	if (sdev->irq < 0) {
-		dev_err(dev, "Cannot find IRQ for i2c");
-		return sdev->irq;
+	ret = gpiod_to_irq(gpio);
+	if (ret < 0) {
+		dev_err(dev, "gpio is not binded to IRQ");
+	} else { 
+		irq = ret;
 	}
 
-	if (sdev->irq != gpiod_to_irq(gpio)){
+	dev_dbg(dev,"irq-gpio is binded to IRQ %d", irq);
+ 
+	if (irq != gpiod_to_irq(gpio)){
 		dev_warn(dev, "IRQ %d is not GPIO %d (%d)\n",
-			 sdev->irq, desc_to_gpio(gpio),
+			 irq, desc_to_gpio(gpio),
 			 gpiod_to_irq(gpio));
 	}
+
+	sdev->irq = irq;
 
 	acpi_dev_free_resource_list(&resources);
 
@@ -236,23 +244,21 @@ static int secocec_noacpi_probe(struct secocec_data *sdev)
 
 }
 
-static int secocec_probe(struct i2c_client *client,
-			 const struct i2c_device_id *id)
+static int secocec_probe(struct platform_device *pdev)
 {
-	struct device *dev = &client->dev;
-	struct secocec_data *secocec = secocec_data_init(client);
+	struct device *dev = &pdev->dev;
+	struct secocec_data *secocec = secocec_data_init(pdev);
 	// u16 rev;
 	int ret;
 	u8 opts;
 
 	/* Check if the adapter supports the needed features */
-	if (!i2c_check_functionality(client->adapter, I2C_FUNC_SMBUS_BYTE_DATA)) {
-		ret = -EIO;
-		goto err;
-	}
-
-	dev_dbg(dev, "detecting secocec client on address 0x%x\n",
-		client->addr);
+	/*
+	 *if (!i2c_check_functionality(pdev->adapter, I2C_FUNC_SMBUS_BYTE_DATA)) {
+	 *        ret = -EIO;
+	 *        goto err;
+	 *}
+	 */
 
 	/* TODO i2c access to secocec? */
 	/*
@@ -311,7 +317,7 @@ static int secocec_probe(struct i2c_client *client,
 			       // Use the custom kernel param to set interrupt type
 			       IRQF_TRIGGER_RISING | IRQF_SHARED,
 			       // Used in /proc/interrupts to identify the owner
-			       dev_name(&client->dev),
+			       dev_name(&pdev->dev),
 			       // The *dev_id for shared interrupt lines
 			       dev);
 
@@ -337,8 +343,9 @@ static int secocec_probe(struct i2c_client *client,
 	if (ret)
 		goto err_delete_adapter;
 
-	dev_dbg(dev, "%s found @ 0x%x (%s)\n", client->name,
-		client->addr, client->adapter->name);
+	platform_set_drvdata(pdev, secocec);
+
+	dev_dbg(dev, "Device registered");
 
 	return ret;
 
@@ -352,9 +359,9 @@ err:
 
 /* ----------------------------------------------------------------------- */
 
-static int secocec_remove(struct i2c_client *client)
+static int secocec_remove(struct platform_device *pdev)
 {
-	struct secocec_data *secocec = i2c_get_clientdata(client);
+	struct secocec_data *secocec = platform_get_drvdata(pdev);
 
 	//release cec
 	cec_unregister_adapter(secocec->cec_adap);
@@ -372,23 +379,15 @@ static const struct acpi_device_id secocec_acpi_match[] = {
 MODULE_DEVICE_TABLE(acpi, secocec_acpi_match);
 #endif
 
-static struct i2c_device_id secocec_id[] = {
-	{SECOCEC_DEV_NAME, 0},
-	{},
-};
-MODULE_DEVICE_TABLE(i2c, secocec_id);
-
-static struct i2c_driver secocec_driver = {
+static struct platform_driver secocec_driver = {
 	.driver = {
 		   .name = SECOCEC_DEV_NAME,
 		   .acpi_match_table = ACPI_PTR(secocec_acpi_match),
 		   },
 	.probe = secocec_probe,
 	.remove = secocec_remove,
-	.id_table = secocec_id,
 };
-
-module_i2c_driver(secocec_driver);
+module_platform_driver(secocec_driver);
 
 MODULE_DESCRIPTION("SECO CEC X86 Driver");
 MODULE_AUTHOR("Ettore Chimenti <ek5.chimenti@gmail.com>");
