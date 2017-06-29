@@ -239,47 +239,84 @@ static int smbWordOp(
 	printk("smbWordOp OK\n");
 	return 0;
 }
-static int secocec_irq_setup( struct platform_device *pdev )
-{
-	struct device *dev = &pdev->dev;
-	static int status;
-	unsigned short	result, ReadReg = 0;
-
-	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_Device_LA, 0x1234,
-			   SMBUS_WRITE, &result);
-	if (status != 0)
-		goto err;
-	
-	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, ENABLE_REGISTER_1, 0,
-			   SMBUS_READ, &ReadReg);
-	if (status != 0)
-		goto err;
-
-	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, ENABLE_REGISTER_1,
-			   ReadReg | 0x1000, SMBUS_WRITE, &result);
-	if (status != 0)
-		goto err;
-
-	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, STATUS_REGISTER_1, 0,
-			   SMBUS_READ, &ReadReg);
-	if (status != 0)
-		goto err;
-
-	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, STATUS_REGISTER_1,
-			   ReadReg, SMBUS_WRITE, &result);
-	if (status != 0)
-		goto err;
-
-	return 0;
-err:
-	dev_err(dev, "Irq setup failed");
-	return status;
-}
 
 //TODO cec implementation
 static int secocec_adap_enable(struct cec_adapter *adap, bool enable)
 {
+	struct secocec_data *cec = adap->priv;
+	struct device *dev = cec->dev;
+	int status;
+	unsigned short result, ReadReg = 0;
+
+	if (enable) {
+		/* Clear logical addresses */
+		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_Device_LA, 0,
+				   SMBUS_WRITE, &result);
+		if (status != 0)
+			goto err;
+
+		/* Enable the interrupts */
+		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, ENABLE_REGISTER_1, 0,
+				   SMBUS_READ, &ReadReg);
+		if (status != 0)
+			goto err;
+
+		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
+				   ENABLE_REGISTER_1, 
+				   ReadReg | ENABLE_REGISTER_1_CEC |
+				   ENABLE_REGISTER_1_IRDA_RC5, SMBUS_WRITE,
+				   &result);
+		if (status != 0)
+			goto err;
+
+		/* Clear the status register */
+		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, STATUS_REGISTER_1, 0,
+				   SMBUS_READ, &ReadReg);
+		if (status != 0)
+			goto err;
+
+		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, STATUS_REGISTER_1,
+				   ReadReg, SMBUS_WRITE, &result);
+		if (status != 0)
+			goto err;
+
+	} else {
+		/* Clear logical addresses */
+		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, ENABLE_REGISTER_1, 0,
+				   SMBUS_READ, &ReadReg);
+		if (status != 0)
+			goto err;
+
+		/* Clear the status register */
+		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, STATUS_REGISTER_1, 0,
+				   SMBUS_READ, &ReadReg);
+		if (status != 0)
+			goto err;
+
+		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, STATUS_REGISTER_1,
+				   ReadReg, SMBUS_WRITE, &result);
+		if (status != 0)
+			goto err;
+
+		/* Disable the interrupts */
+		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, ENABLE_REGISTER_1, 0,
+				   SMBUS_READ, &ReadReg);
+		if (status != 0)
+			goto err;
+
+		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
+				   ENABLE_REGISTER_1, ReadReg &
+				   ~ENABLE_REGISTER_1_CEC &
+				   ~ENABLE_REGISTER_1_IRDA_RC5, SMBUS_WRITE,
+				   &result);
+		if (status != 0)
+			goto err;
+	}
+
 	return 0;
+err:
+	dev_err(dev, "Adapter setup failed");
+	return status;
 }
 
 static int secocec_adap_monitor_all_enable(struct cec_adapter *adap,
@@ -290,7 +327,27 @@ static int secocec_adap_monitor_all_enable(struct cec_adapter *adap,
 
 static int secocec_adap_log_addr(struct cec_adapter *adap, u8 logical_addr)
 {
+	struct secocec_data *cec = adap->priv;
+	struct device *dev = cec->dev;
+	int status;
+	unsigned short result;
+
+	if (logical_addr == CEC_LOG_ADDR_INVALID){
+		dev_dbg(dev, "Invalid addr, defaulting to 0");
+		logical_addr = 0;
+	}
+	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_Device_LA, logical_addr,
+			   SMBUS_WRITE, &result);
+	if (status != 0)
+		goto err;
+
+	dev_dbg(dev, "Set logical address to %02x", logical_addr);
+
 	return 0;
+
+err:
+	dev_err(dev, "Set logical address failed (%d)", status);
+	return status;
 }
 
 static int secocec_adap_transmit(struct cec_adapter *adap, u8 attempts,
@@ -307,35 +364,160 @@ static int secocec_received(struct cec_adapter *adap, struct cec_msg *msg)
 {
 	return 0;
 }
+static int secocec_rx_done(struct cec_adapter *adap, unsigned short statusReg )
+{
+	struct secocec_data *cec = adap->priv;
+	struct device *dev = cec->dev;
+	struct cec_msg msg = {};
+	u8 i;
+	u8 payload;
+
+	int status;
+	unsigned short result, ReadReg = 0;
+
+	printk("Status: 0x%02X ", statusReg);
+	
+	if ( ! statusReg & CEC_STATUS_MSG_RECEIVED_MASK ) {
+		dev_warn(dev, "Message not received, but interrupt fired \\_\"._/");
+		return EAGAIN;
+	}
+	if ( statusReg & CEC_STATUS_RX_ERROR_MASK ) {
+		dev_warn(dev, "Message received with errors. Discarding");
+		return EIO;
+	}
+
+	/* Read message length */
+	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_READ_DATA_LENGTH,
+			   0, SMBUS_READ, &ReadReg);
+	if (status != 0)
+		goto err;
+
+	payload = ReadReg;
+	if (payload > 14) {
+		payload = 14;
+		dev_warn(dev, "Message received longer than 16 bytes, cutting");
+	}
+
+	/* device does not account for the header */
+	msg.len = payload + 2;
+
+	dev_dbg(dev, "Incoming message: payload len %d", payload);
+
+	/* Read logical address */
+	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
+			   CEC_READ_INITIATOR_LOGICAL_ADDRESS, 0, SMBUS_READ,
+			   &ReadReg);
+	if (status != 0)
+		goto err;
+
+	//printk("LA : 0x%02X ", ReadReg);
+
+	/* device stores source LA but no destination yet TODO */
+	msg.msg[0] = ( ReadReg & 0x000F ) << 4;
+	msg.msg[0] |= 0x000F;
+
+	//printk("msg0 : 0x%02X ", msg.msg[0]);
+
+	/* Read operation ID */
+	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_READ_OPERATION_ID,
+			   0, SMBUS_READ, &ReadReg);
+	if (status != 0)
+		goto err;
+
+	//printk("CMD: 0x%02X ", ReadReg);
+
+	msg.msg[1] = ReadReg;
+	//printk("msg1 : 0x%02X ", msg.msg[1]);
+
+	/* device stores 2 bytes in every 16bit register */
+	for (i = 0 ; i < payload / 2 + payload % 2; i++){
+		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
+				   CEC_READ_DATA_00 + i, 0, SMBUS_READ,
+				   &ReadReg);
+		if (status != 0)
+			goto err;
+
+		/* low byte, skipping header */
+		msg.msg[ (i<<1) + 2 ] = ReadReg & 0x00FF ;
+		//printk("DATA%d : 0x%02X ", i, msg.msg[(i<<1) +2]);
+
+		/* hi byte */
+		msg.msg[ (i<<1)+1 + 2 ] = ( ReadReg & 0xFF00 ) >> 8 ;
+		//printk("DATA%d : 0x%02X ", i+1, msg.msg[(i<<1)+1 +2]);
+	}
+
+	/* Clear last byte if odd len*/
+	if (payload % 2)
+		msg.msg[ (i<<1)+1 + 2 ] = 0;
+
+	cec_received_msg(cec->cec_adap, &msg);
+
+	dev_dbg(dev, "Message received successfully");
+
+	return 0;
+
+err:
+	dev_err(dev, "SMBus Read failed");
+	return EIO;
+}
 
 struct cec_adap_ops secocec_cec_adap_ops = {
 	/* Low-level callbacks */
 	.adap_enable = secocec_adap_enable,
-	.adap_monitor_all_enable = secocec_adap_monitor_all_enable,
+//	.adap_monitor_all_enable = secocec_adap_monitor_all_enable,
 	.adap_log_addr = secocec_adap_log_addr,
 	.adap_transmit = secocec_adap_transmit,
-	.adap_status = secocec_adap_status,
+//	.adap_status = secocec_adap_status,
 
 	/* High-level callbacks */
-	.received = secocec_received,
+//	.received = secocec_received,
 };
 
-static irq_handler_t secocec_irq_handler(unsigned int irq, void *dev_id,
-					 struct pt_regs *regs)
+static irqreturn_t secocec_irq_handler(int irq, void *priv)
 {
 	//TODO irq handler
+	struct secocec_data *cec = priv;
+	struct device *dev = cec->dev;
 	
-	printk("SECO CEC Interrupt Handled");
+	int status;
+	unsigned short result, ReadReg = 0;
 
-	return (irq_handler_t) IRQ_HANDLED;
+	/*  Read status register */
+	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, STATUS_REGISTER_1, 0,
+			   SMBUS_READ, &ReadReg);
+	if (status != 0)
+		goto err;
 
+	if (ReadReg & STATUS_REGISTER_1_CEC){
+		dev_dbg(dev, "CEC RX Interrupt Catched");
+		secocec_rx_done(cec->cec_adap, ReadReg);
+	}
+
+	if (ReadReg & STATUS_REGISTER_1_IRDA_RC5){
+		dev_dbg(dev, "IRDA RC5 Interrupt Catched");
+		//TODO IRDA RX
+	}
+
+	/*  Reset status register */
+	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, STATUS_REGISTER_1,
+			   ReadReg, SMBUS_WRITE, &result);
+	if (status != 0)
+		goto err;
+
+	dev_dbg(dev, "Interrupt Handled");
+
+	return IRQ_HANDLED;
+
+err:
+	dev_err(dev, "IRQ: Read/Write SMBus operation failed");
+
+	return IRQ_HANDLED;
 }
-static irq_handler_t secocec_irq_handler_quick(unsigned int irq, void *dev_id,
-					 struct pt_regs *regs)
+static irqreturn_t secocec_irq_handler_quick(int irq, void *priv)
 {
 	//TODO irq handler
 	
-	return (irq_handler_t) IRQ_WAKE_THREAD;
+	return IRQ_WAKE_THREAD;
 
 }
 
@@ -372,7 +554,7 @@ static int secocec_acpi_probe(struct secocec_data *sdev)
 	const struct acpi_device_id *id;
 	struct gpio_desc *gpio;
 	int ret;
-	int irq;
+	int irq = 0;
 
 	/* Retrieve GPIO data from ACPI, if _DSD is present */
 	id = acpi_match_device(dev->driver->acpi_match_table, dev);
@@ -515,24 +697,17 @@ static int secocec_probe(struct platform_device *pdev)
 			       // The interrupt number requested
 			       secocec->irq,
 			       // The pointer to the handler function below
-			       (irq_handler_t) secocec_irq_handler,
-			       (irq_handler_t) secocec_irq_handler_quick,
+			       secocec_irq_handler_quick,
+			       secocec_irq_handler,
 			       // Use the custom kernel param to set interrupt type
 			       IRQF_TRIGGER_RISING | IRQF_ONESHOT,
 			       // Used in /proc/interrupts to identify the owner
 			       dev_name(&pdev->dev),
 			       // The *dev_id for shared interrupt lines
-			       dev);
+			       secocec);
 
 	if (ret < 0) {
 		dev_err(dev, "Cannot request IRQ %d", secocec->irq);
-		ret = -EIO;
-		goto err;
-	}
-
-	ret = secocec_irq_setup(pdev);
-	if (ret != 0) {
-		dev_err(dev, "Cannot setup STM32 properly");
 		ret = -EIO;
 		goto err;
 	}
@@ -547,11 +722,14 @@ static int secocec_probe(struct platform_device *pdev)
 						 opts, SECOCEC_MAX_ADDRS);
 	ret = PTR_ERR_OR_ZERO(secocec->cec_adap);
 	if (ret)
-		goto err_delete_adapter;
+		goto err;
 
 	ret = cec_register_adapter(secocec->cec_adap, dev);
 	if (ret)
 		goto err_delete_adapter;
+
+	// TODO: remove this
+	secocec_adap_enable(secocec->cec_adap, 1);
 
 	platform_set_drvdata(pdev, secocec);
 
@@ -572,6 +750,9 @@ err:
 static int secocec_remove(struct platform_device *pdev)
 {
 	struct secocec_data *secocec = platform_get_drvdata(pdev);
+
+	// TODO: remove this
+	secocec_adap_enable(secocec->cec_adap, 0);
 
 	//release cec
 	cec_unregister_adapter(secocec->cec_adap);
