@@ -333,18 +333,28 @@ static int secocec_adap_log_addr(struct cec_adapter *adap, u8 logical_addr)
 	struct secocec_data *cec = adap->priv;
 	struct device *dev = cec->dev;
 	int status;
-	unsigned short result;
+	unsigned short result, reg;
 
-	if (logical_addr == CEC_LOG_ADDR_INVALID){
-		dev_dbg(dev, "Invalid addr, defaulting to 0");
-		logical_addr = 0;
+	if (logical_addr != CEC_LOG_ADDR_INVALID){
+		dev_dbg(dev, "Set logical address to %02x", logical_addr);
+
+		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_Device_LA,
+				   0, SMBUS_READ, &reg);
+		if (status != 0)
+			goto err;
+
+		reg |= 1 << logical_addr;
+
+	} else {
+		dev_dbg(dev, "Invalid addr, resetting addresses");
+		reg = 0;
 	}
-	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_Device_LA, logical_addr,
-			   SMBUS_WRITE, &result);
+
+	// Write logical addr bitmap
+	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_Device_LA,
+			   reg, SMBUS_WRITE, &result);
 	if (status != 0)
 		goto err;
-
-	dev_dbg(dev, "Set logical address to %02x", logical_addr);
 
 	return 0;
 
