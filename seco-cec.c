@@ -376,12 +376,12 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short statusReg )
 	struct device *dev = cec->dev;
 	struct cec_msg msg = {};
 	u8 i;
-	u8 payload;
+	u8 payload_len;
 
 	int status;
 	unsigned short result, ReadReg = 0;
 
-	printk("Status: 0x%02X ", statusReg);
+	dev_dbg(dev,"Status: 0x%02X ", statusReg);
 
 	if ( ! statusReg & CEC_STATUS_MSG_RECEIVED_MASK ) {
 		dev_warn(dev, "Message not received, but interrupt fired \\_\"._/");
@@ -398,16 +398,16 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short statusReg )
 	if (status != 0)
 		goto err;
 
-	payload = ReadReg;
-	if (payload > 14) {
-		payload = 14;
+	payload_len = ReadReg;
+	dev_dbg(dev, "Incoming message (payload len %d):", payload_len);
+
+	/* Device msg len already accounts for the header */
+	msg.len = payload_len + 2;
+
+	if (msg.len > 16) {
+		msg.len = 16;
 		dev_warn(dev, "Message received longer than 16 bytes, cutting");
 	}
-
-	/* device does not account for the header */
-	msg.len = payload + 2;
-
-	dev_dbg(dev, "Incoming message: payload len %d", payload);
 
 	/* Read logical address */
 	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
@@ -416,24 +416,21 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short statusReg )
 	if (status != 0)
 		goto err;
 
-	//printk("LA : 0x%02X ", ReadReg);
-
 	/* device stores source LA but no destination yet TODO */
 	msg.msg[0] = ( ReadReg & 0x000F ) << 4;
 	msg.msg[0] |= 0x000F;
 
-	//printk("msg0 : 0x%02X ", msg.msg[0]);
-
 	/* Read operation ID */
-	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_READ_OPERATION_ID,
-			   0, SMBUS_READ, &ReadReg);
+	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
+			   CEC_READ_OPERATION_ID, 0, SMBUS_READ,
+			   &ReadReg);
 	if (status != 0)
 		goto err;
 
 	msg.msg[1] = ReadReg;
 
 	/* device stores 2 bytes in every 16bit register */
-	for (i = 0 ; i < payload / 2 + payload % 2; i++){
+	for (i = 0 ; i < payload_len / 2 + payload_len % 2; i++){
 		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
 				   CEC_READ_DATA_00 + i, 0, SMBUS_READ,
 				   &ReadReg);
@@ -448,8 +445,12 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short statusReg )
 	}
 
 	/* Clear last byte if odd len*/
-	if (payload % 2)
+	if (payload_len % 2)
 		msg.msg[ (i<<1)+1 + 2 ] = 0;
+
+        for (i = 0; i < msg.len; i++) {
+		pr_debug("\t byte %d : 0x%02x\n", i, msg.msg[i]);
+        }
 
 	cec_received_msg(cec->cec_adap, &msg);
 
