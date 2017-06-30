@@ -280,6 +280,7 @@ static int secocec_adap_enable(struct cec_adapter *adap, bool enable)
 		if (status != 0)
 			goto err;
 
+		dev_dbg(dev, "Device enabled");
 	} else {
 		/* Clear logical addresses */
 		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, ENABLE_REGISTER_1, 0,
@@ -311,6 +312,8 @@ static int secocec_adap_enable(struct cec_adapter *adap, bool enable)
 				   &result);
 		if (status != 0)
 			goto err;
+
+		dev_dbg(dev, "Device disabled");
 	}
 
 	return 0;
@@ -713,7 +716,7 @@ static int secocec_probe(struct platform_device *pdev)
 	}
 
 	//allocate cec
-	opts = CEC_CAP_TRANSMIT |
+	opts = CEC_CAP_TRANSMIT | CEC_CAP_PHYS_ADDR |
 	    CEC_CAP_LOG_ADDRS | CEC_CAP_PASSTHROUGH | CEC_CAP_RC;
 
 	secocec->cec_adap = cec_allocate_adapter(&secocec_cec_adap_ops,
@@ -727,9 +730,6 @@ static int secocec_probe(struct platform_device *pdev)
 	ret = cec_register_adapter(secocec->cec_adap, dev);
 	if (ret)
 		goto err_delete_adapter;
-
-	// TODO: remove this
-	secocec_adap_enable(secocec->cec_adap, 1);
 
 	platform_set_drvdata(pdev, secocec);
 
@@ -750,9 +750,6 @@ err:
 static int secocec_remove(struct platform_device *pdev)
 {
 	struct secocec_data *secocec = platform_get_drvdata(pdev);
-
-	// TODO: remove this
-	secocec_adap_enable(secocec->cec_adap, 0);
 
 	//release cec
 	cec_unregister_adapter(secocec->cec_adap);
