@@ -359,7 +359,115 @@ err:
 static int secocec_adap_transmit(struct cec_adapter *adap, u8 attempts,
 				 u32 signal_free_time, struct cec_msg *msg)
 {
+	struct secocec_data *cec = adap->priv;
+	struct device *dev = cec->dev;
+	int status;
+	unsigned short result;
+	unsigned short reg;
+        unsigned short payload_len, destination;
+	u8 i;
+
+	dev_dbg(dev, "Sending message (len %d)", msg->len);
+
+	if (msg->len > 16){
+		dev_warn(dev, "Trying to send a message longer than 16 bytes, cutting");
+		msg->len = 16;
+	}
+
+	// hw cannot send polling messages
+	if (msg->len < 2){
+		dev_warn(dev, "Trying to send a polling message, but hw cannot send any");
+		return EINVAL;
+	}
+
+	// Device msg len already accounts for header
+	payload_len = msg->len - 2;
+
+	// Send data length
+	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_WRITE_DATA_LENGTH,
+			   payload_len, SMBUS_WRITE, &result);
+	if (status != 0)
+		goto err;
+
+	// Send msg destination
+	destination = msg->msg[0] & 0x0F;
+	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_WRITE_DESTINATION,
+			   destination, SMBUS_WRITE, &result);
+	if (status != 0)
+		goto err;
+
+	// Copy message into registers
+	for (i = 0; i < payload_len / 2 + payload_len % 2; i++) {
+
+		// hi byte
+		reg = msg->msg[ (i<<1)+1 + 2 ] << 8;
+
+		// lo
+		reg |= msg->msg[ (i<<1) + 2 ];
+
+		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
+				   CEC_WRITE_DATA_00 + i, reg,
+				   SMBUS_WRITE, &result);
+		if (status != 0)
+			goto err;
+	}
+
+	// Send Operation ID and fire msg
+	if (payload_len > 0) {
+		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
+				   CEC_WRITE_OPERATION_ID, msg->msg[1],
+				   SMBUS_WRITE, &result);
+		if (status != 0)
+			goto err;
+	} else {
+		// write 0 if no opID
+		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
+				   CEC_WRITE_OPERATION_ID, 0,
+				   SMBUS_WRITE, &result);
+		if (status != 0)
+			goto err;
+	}
+
+
+	// End operation polling
+	for (i=0 ; i <= attempts; i++ ) {
+		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_STATUS, 0,
+				   SMBUS_READ, &result);
+
+		if (( result & CEC_STATUS_MSG_SENT_MASK ) || 
+		    ( result & CEC_STATUS_TX_ERROR_MASK ) ||
+		    ( status != 0) )
+			break;
+	}
+
+	if (status != 0)
+		goto err;
+
+	if ( result & CEC_STATUS_TX_ERROR_MASK )
+		goto err;
+
+	if ( ! ( result & CEC_STATUS_MSG_SENT_MASK ) ){
+		dev_err(dev, "Exceeded attempts (%d) for end transmission check",
+			attempts);
+	}
+
+	// Clear errors
+	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_STATUS, result,
+			   SMBUS_WRITE, &result);
+	if (status != 0)
+		goto err;
+
+	dev_dbg(dev, "Transmitted Frame (len %d):", msg->len);
+
+        for (i = 0; i < msg->len; i++) {
+		pr_debug("\t byte %d : 0x%02x\n", i, msg->msg[i]);
+        }
+
 	return 0;
+
+err:
+	dev_err(dev, "Transmit failed (%d)", status);
+	return status;
 }
 
 static void secocec_adap_status(struct cec_adapter *adap, struct seq_file *file)
