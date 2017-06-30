@@ -85,13 +85,6 @@ struct secocec_data {
 	struct platform_device *pdev;
 	struct cec_adapter *cec_adap;
 	int irq;
-
-	struct mutex read_lock;	//config lock, not used for now
-	struct mutex write_lock;
-
-	u8 cec_addr[SECOCEC_MAX_ADDRS];
-	u8 cec_valid_addrs;
-	bool cec_enabled_adap;
 };
 
 static struct secocec_data *secocec_data_init(struct platform_device *pdev)
@@ -107,9 +100,6 @@ static struct secocec_data *secocec_data_init(struct platform_device *pdev)
 
 	drvdata->pdev = pdev;
 	drvdata->dev = dev;
-
-	mutex_init(&drvdata->read_lock);
-	mutex_init(&drvdata->write_lock);
 
 	return drvdata;
 }
@@ -166,13 +156,13 @@ static int smbWordOp(
 
 	if(!request_muxed_region(0xEB, 1, "CEC00001"))
 	{
-		printk("request_region 0xEB fail\n");
+		pr_debug("request_region 0xEB fail\n");
 		return 1;
 	}
 
 	if(!request_muxed_region(m_SMBus_Base_Address, 7, "CEC00001"))
 	{
-		printk("request_region m_SMBus_Base_Address fail\n");
+		pr_debug("request_region m_SMBus_Base_Address fail\n");
 		release_region(0xEB, 1);
 		return 2;
 	}
@@ -181,10 +171,12 @@ static int smbWordOp(
 
 	if (count > SMBTIMEOUT)
 	{
-		printk("smbWordOp SMBTIMEOUT\n");
+		pr_debug("smbWordOp SMBTIMEOUT\n");
 		outb(0xFF, HSTS);
 		release_region(0xEB, 1);
+		pr_debug("smbWordOp RELEASE 0xEB\n");
 		release_region(m_SMBus_Base_Address, 14);
+		pr_debug("smbWordOp RELEASE Base Addr\n");
 		return 3;
 	}
 
@@ -197,6 +189,7 @@ static int smbWordOp(
 	{
 		outb((unsigned char)data, HDAT0);
 		outb((unsigned char)(data >> 8), HDAT1);
+		pr_debug("smbWordOp WRITE: 0x%04x\n", data);
 	}
 
 	outb(BRA_START + DataFormat_Local, HCNT);
@@ -211,7 +204,7 @@ static int smbWordOp(
 	if (count > SMBTIMEOUT)
 	{
 		outb(0xFF, HSTS);
-		printk("smbWordOp SMBTIMEOUT_1\n");
+		pr_debug("smbWordOp SMBTIMEOUT_1\n");
 		release_region(m_SMBus_Base_Address, 7);
 		release_region(0xEB, 1);
 		return 4;
@@ -221,7 +214,7 @@ static int smbWordOp(
 	if (ret & (BRA_HSTS_ERR_MASK))
 	{
 		outb(0xFF, HSTS);
-		printk("inb(HSTS) = 0x%X\n", ret);
+		pr_debug("inb(HSTS) = 0x%X\n", ret);
 		release_region(m_SMBus_Base_Address, 7);
 		release_region(0xEB, 1);
 		return 5;
@@ -230,13 +223,13 @@ static int smbWordOp(
 	if (operation == SMBUS_READ)
 	{
 		*result = ((inb(HDAT0) & 0xFF) + ((inb(HDAT1) & 0xFF) << 8));
+		pr_debug("smbWordOp READ: 0x%04x\n", *result);
 	}
 
 	outb(0xFF, HSTS);
 
 	release_region(m_SMBus_Base_Address, 7);
 	release_region(0xEB, 1);
-	printk("smbWordOp OK\n");
 	return 0;
 }
 
@@ -389,7 +382,7 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short statusReg )
 	unsigned short result, ReadReg = 0;
 
 	printk("Status: 0x%02X ", statusReg);
-	
+
 	if ( ! statusReg & CEC_STATUS_MSG_RECEIVED_MASK ) {
 		dev_warn(dev, "Message not received, but interrupt fired \\_\"._/");
 		return EAGAIN;
@@ -437,10 +430,7 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short statusReg )
 	if (status != 0)
 		goto err;
 
-	//printk("CMD: 0x%02X ", ReadReg);
-
 	msg.msg[1] = ReadReg;
-	//printk("msg1 : 0x%02X ", msg.msg[1]);
 
 	/* device stores 2 bytes in every 16bit register */
 	for (i = 0 ; i < payload / 2 + payload % 2; i++){
@@ -452,11 +442,9 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short statusReg )
 
 		/* low byte, skipping header */
 		msg.msg[ (i<<1) + 2 ] = ReadReg & 0x00FF ;
-		//printk("DATA%d : 0x%02X ", i, msg.msg[(i<<1) +2]);
 
 		/* hi byte */
 		msg.msg[ (i<<1)+1 + 2 ] = ( ReadReg & 0xFF00 ) >> 8 ;
-		//printk("DATA%d : 0x%02X ", i+1, msg.msg[(i<<1)+1 +2]);
 	}
 
 	/* Clear last byte if odd len*/
@@ -491,7 +479,7 @@ static irqreturn_t secocec_irq_handler(int irq, void *priv)
 	//TODO irq handler
 	struct secocec_data *cec = priv;
 	struct device *dev = cec->dev;
-	
+
 	int status;
 	unsigned short result, ReadReg = 0;
 
@@ -517,7 +505,7 @@ static irqreturn_t secocec_irq_handler(int irq, void *priv)
 	if (status != 0)
 		goto err;
 
-	dev_dbg(dev, "Interrupt Handled");
+	dev_dbg(dev, "CEC RX Interrupt Handled");
 
 	return IRQ_HANDLED;
 
@@ -529,27 +517,10 @@ err:
 static irqreturn_t secocec_irq_handler_quick(int irq, void *priv)
 {
 	//TODO irq handler
-	
+
 	return IRQ_WAKE_THREAD;
 
 }
-
-/*
- *static s32 seco_smbus_read_byte_data_check(struct platform_driver *drv
- *                                           u8 command, bool check)
- *{
- *        union i2c_smbus_data data;
- *
- *        if (!i2c_smbus_xfer(client->adapter, client->addr, client->flags,
- *                            I2C_SMBUS_READ, command,
- *                            I2C_SMBUS_BYTE_DATA, &data))
- *                return data.byte;
- *        if (check)
- *                dev_err(&client->dev, "error reading %02x, %02x\n",
- *                        client->addr, command);
- *        return -1;
- *}
- */
 
 static const struct acpi_gpio_params irq_gpios = { 0, 0, false };	// crs_entry_index, line_index, active_low
 
@@ -598,7 +569,7 @@ static int secocec_acpi_probe(struct secocec_data *sdev)
 	}
 
 	dev_dbg(dev,"irq-gpio is binded to IRQ %d", irq);
- 
+
 	if (irq != acpi_dev_gpio_irq_get(ACPI_COMPANION(dev), 0) ){
 		dev_warn(dev, "IRQ %d is not GPIO %d (%d), available %d\n",
 			 irq, desc_to_gpio(gpio),
