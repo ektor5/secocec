@@ -493,7 +493,7 @@ static int secocec_received(struct cec_adapter *adap, struct cec_msg *msg)
 {
 	return 0;
 }
-static int secocec_rx_done(struct cec_adapter *adap, unsigned short statusReg )
+static int secocec_rx_done(struct cec_adapter *adap)
 {
 	struct secocec_data *cec = adap->priv;
 	struct device *dev = cec->dev;
@@ -502,17 +502,21 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short statusReg )
 	u8 payload_len;
 
 	int status;
-	unsigned short result, ReadReg = 0;
+	unsigned short result, ReadReg, StatusReg = 0;
 
-	dev_dbg(dev,"Status: 0x%02X ", statusReg);
+	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_STATUS, 0,
+			   SMBUS_READ, &StatusReg);
+	if (status != 0)
+		goto err;
 
-	if ( ! statusReg & CEC_STATUS_MSG_RECEIVED_MASK ) {
+	if ( ~StatusReg & CEC_STATUS_MSG_RECEIVED_MASK ) {
 		dev_warn(dev, "Message not received, but interrupt fired \\_\"._/");
-		return EAGAIN;
+		return -EAGAIN;
 	}
-	if ( statusReg & CEC_STATUS_RX_ERROR_MASK ) {
+	if ( StatusReg & CEC_STATUS_RX_ERROR_MASK ) {
 		dev_warn(dev, "Message received with errors. Discarding");
-		return EIO;
+		status = -EIO;
+		goto rxerr;
 	}
 
 	/* Read message length */
@@ -577,13 +581,26 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short statusReg )
 
 	cec_received_msg(cec->cec_adap, &msg);
 
+	/* Reset status reg */
+	StatusReg = CEC_STATUS_MSG_RECEIVED_MASK;
+	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_STATUS,
+			   StatusReg, SMBUS_WRITE, &result);
+	if (status != 0)
+		goto err;
+
 	dev_dbg(dev, "Message received successfully");
 
 	return 0;
 
+rxerr:
+	/* Reset error reg */
+	StatusReg = CEC_STATUS_MSG_RECEIVED_MASK | CEC_STATUS_RX_ERROR_MASK;
+	smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_STATUS,
+			   StatusReg, SMBUS_WRITE, &result);
+
 err:
-	dev_err(dev, "SMBus Read failed");
-	return EIO;
+	dev_err(dev, "Receive message failed (%d)", status);
+	return -EIO;
 }
 
 struct cec_adap_ops secocec_cec_adap_ops = {
@@ -615,7 +632,7 @@ static irqreturn_t secocec_irq_handler(int irq, void *priv)
 
 	if (ReadReg & STATUS_REGISTER_1_CEC){
 		dev_dbg(dev, "CEC RX Interrupt Catched");
-		secocec_rx_done(cec->cec_adap, ReadReg);
+		secocec_rx_done(cec->cec_adap);
 	}
 
 	if (ReadReg & STATUS_REGISTER_1_IRDA_RC5){
