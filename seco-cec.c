@@ -365,7 +365,7 @@ static int secocec_adap_transmit(struct cec_adapter *adap, u8 attempts,
 	int status;
 	unsigned short result;
 	unsigned short reg;
-        unsigned short payload_len, destination, StatusReg;
+        unsigned short payload_len, destination;
 	u8 i;
 
 	dev_dbg(dev, "Sending message (len %d)", msg->len);
@@ -427,7 +427,7 @@ static int secocec_adap_transmit(struct cec_adapter *adap, u8 attempts,
 		if (status != 0)
 			goto err;
 	} else {
-		// write 0 if no opID
+		// write 0 if no opID (not supported at the moment)
 		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
 				   CEC_WRITE_OPERATION_ID, 0,
 				   SMBUS_WRITE, &result);
@@ -435,50 +435,7 @@ static int secocec_adap_transmit(struct cec_adapter *adap, u8 attempts,
 			goto err;
 	}
 
-	// End operation polling
-	for (i=0 ; i <= attempts; i++ ) {
-		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_STATUS, 0,
-				   SMBUS_READ, &result);
-
-		if (( result & CEC_STATUS_MSG_SENT_MASK ) ||
-		    ( result & CEC_STATUS_TX_ERROR_MASK ) ||
-		    ( status != 0) )
-			break;
-	}
-
-	if (status != 0)
-		goto err;
-
-	if ( result & CEC_STATUS_TX_ERROR_MASK )
-	{
-		dev_err(dev, "Transmitted message with errors");
-		status = -EIO;
-		goto txerr;
-	}
-
-	if ( result & CEC_STATUS_MSG_SENT_MASK ){
-		dev_dbg(dev, "Transmitted frame successfully (len %d):", msg->len);
-	} else {
-		dev_err(dev, "Exceeded attempts (%d) for end transmission check",
-			attempts);
-		status = -EAGAIN;
-		goto err;
-	}
-
-	// Clear status reg
-	StatusReg = CEC_STATUS_MSG_SENT_MASK;
-	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_STATUS, StatusReg,
-			   SMBUS_WRITE, &result);
-	if (status != 0)
-		goto err;
-
 	return 0;
-
-txerr:
-	// Clear errors reg
-	StatusReg = CEC_STATUS_MSG_SENT_MASK | CEC_STATUS_TX_ERROR_MASK;
-	smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_STATUS, StatusReg,
-			   SMBUS_WRITE, &result);
 
 err:
 	dev_err(dev, "Transmit failed (%d)", status);
@@ -493,7 +450,41 @@ static int secocec_received(struct cec_adapter *adap, struct cec_msg *msg)
 {
 	return 0;
 }
-static int secocec_rx_done(struct cec_adapter *adap)
+static int secocec_tx_done(struct cec_adapter *adap, unsigned short StatusReg)
+{
+	struct secocec_data *cec = adap->priv;
+	struct device *dev = cec->dev;
+
+	int status;
+	unsigned short result = 0;
+
+	if ( StatusReg & CEC_STATUS_TX_ERROR_MASK ) {
+		dev_warn(dev, "Previous message sent with errors");
+		status = -EIO;
+		goto txerr;
+	}
+
+	dev_dbg(dev, "Transmitted frame successfully");
+
+	StatusReg = CEC_STATUS_MSG_SENT_MASK;
+	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_STATUS,
+			   StatusReg, SMBUS_WRITE, &result);
+	if (status != 0)
+		goto txerr;
+
+	return 0;
+
+txerr:
+	/* Reset error reg */
+	StatusReg = CEC_STATUS_TX_ERROR_MASK | CEC_STATUS_MSG_SENT_MASK;
+	smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_STATUS,
+			   StatusReg, SMBUS_WRITE, &result);
+
+	dev_err(dev, "Transmit failed (%d)", status);
+	return status;
+}
+
+static int secocec_rx_done(struct cec_adapter *adap, unsigned short StatusReg)
 {
 	struct secocec_data *cec = adap->priv;
 	struct device *dev = cec->dev;
@@ -502,17 +493,8 @@ static int secocec_rx_done(struct cec_adapter *adap)
 	u8 payload_len;
 
 	int status;
-	unsigned short result, ReadReg, StatusReg = 0;
+	unsigned short result, ReadReg = 0;
 
-	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_STATUS, 0,
-			   SMBUS_READ, &StatusReg);
-	if (status != 0)
-		goto err;
-
-	if ( ~StatusReg & CEC_STATUS_MSG_RECEIVED_MASK ) {
-		dev_warn(dev, "Message not received, but interrupt fired \\_\"._/");
-		return -EAGAIN;
-	}
 	if ( StatusReg & CEC_STATUS_RX_ERROR_MASK ) {
 		dev_warn(dev, "Message received with errors. Discarding");
 		status = -EIO;
@@ -622,7 +604,7 @@ static irqreturn_t secocec_irq_handler(int irq, void *priv)
 	struct device *dev = cec->dev;
 
 	int status;
-	unsigned short result, ReadReg = 0;
+	unsigned short result, ReadReg, StatusReg = 0;
 
 	/*  Read status register */
 	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, STATUS_REGISTER_1, 0,
@@ -631,8 +613,24 @@ static irqreturn_t secocec_irq_handler(int irq, void *priv)
 		goto err;
 
 	if (ReadReg & STATUS_REGISTER_1_CEC){
-		dev_dbg(dev, "CEC RX Interrupt Catched");
-		secocec_rx_done(cec->cec_adap);
+		dev_dbg(dev, "CEC Interrupt Catched");
+
+		/* Read CEC status register */
+		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_STATUS, 0,
+				   SMBUS_READ, &StatusReg);
+		if (status != 0)
+			goto err;
+
+		if (StatusReg & CEC_STATUS_MSG_RECEIVED_MASK)
+			secocec_rx_done(cec->cec_adap, StatusReg);
+
+		if (StatusReg & CEC_STATUS_MSG_SENT_MASK)
+			secocec_tx_done(cec->cec_adap, StatusReg);
+
+		if ( (~StatusReg & CEC_STATUS_MSG_SENT_MASK) &&
+		     (~StatusReg & CEC_STATUS_MSG_RECEIVED_MASK) )
+			dev_warn(dev, "Message not received or sent, but interrupt fired \\_\"._/");
+
 	}
 
 	if (ReadReg & STATUS_REGISTER_1_IRDA_RC5){
@@ -646,7 +644,7 @@ static irqreturn_t secocec_irq_handler(int irq, void *priv)
 	if (status != 0)
 		goto err;
 
-	dev_dbg(dev, "CEC RX Interrupt Handled");
+	dev_dbg(dev, "CEC Interrupt Handled");
 
 	return IRQ_HANDLED;
 
