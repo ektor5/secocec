@@ -370,6 +370,10 @@ static int secocec_adap_transmit(struct cec_adapter *adap, u8 attempts,
 
 	dev_dbg(dev, "Sending message (len %d)", msg->len);
 
+        for (i = 0; i < msg->len; i++) {
+		pr_debug("\t byte %d : 0x%02x\n", i, msg->msg[i]);
+        }
+
 	if (msg->len > 16){
 		dev_warn(dev, "Trying to send a message longer than 16 bytes, cutting");
 		msg->len = 16;
@@ -457,12 +461,6 @@ static int secocec_adap_transmit(struct cec_adapter *adap, u8 attempts,
 			   SMBUS_WRITE, &result);
 	if (status != 0)
 		goto err;
-
-	dev_dbg(dev, "Transmitted Frame (len %d):", msg->len);
-
-        for (i = 0; i < msg->len; i++) {
-		pr_debug("\t byte %d : 0x%02x\n", i, msg->msg[i]);
-        }
 
 	return 0;
 
