@@ -189,7 +189,7 @@ static int smbWordOp(
 	{
 		outb((unsigned char)data, HDAT0);
 		outb((unsigned char)(data >> 8), HDAT1);
-		pr_debug("smbWordOp WRITE: 0x%04x\n", data);
+		pr_debug("smbWordOp WRITE (0x%02x): 0x%04x\n", cmd, data);
 	}
 
 	outb(BRA_START + DataFormat_Local, HCNT);
@@ -223,7 +223,7 @@ static int smbWordOp(
 	if (operation == SMBUS_READ)
 	{
 		*result = ((inb(HDAT0) & 0xFF) + ((inb(HDAT1) & 0xFF) << 8));
-		pr_debug("smbWordOp READ: 0x%04x\n", *result);
+		pr_debug("smbWordOp READ (0x%02x): 0x%04x\n", cmd, *result);
 	}
 
 	outb(0xFF, HSTS);
