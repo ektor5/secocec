@@ -316,12 +316,6 @@ err:
 	return status;
 }
 
-static int secocec_adap_monitor_all_enable(struct cec_adapter *adap,
-					   bool enable)
-{
-	return 0;
-}
-
 static int secocec_adap_log_addr(struct cec_adapter *adap, u8 logical_addr)
 {
 	struct secocec_data *cec = adap->priv;
@@ -442,14 +436,6 @@ err:
 	return status;
 }
 
-static void secocec_adap_status(struct cec_adapter *adap, struct seq_file *file)
-{
-}
-
-static int secocec_received(struct cec_adapter *adap, struct cec_msg *msg)
-{
-	return 0;
-}
 static int secocec_tx_done(struct cec_adapter *adap, unsigned short StatusReg)
 {
 	struct secocec_data *cec = adap->priv;
