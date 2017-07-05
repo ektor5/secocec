@@ -373,14 +373,8 @@ static int secocec_adap_transmit(struct cec_adapter *adap, u8 attempts,
 		msg->len = 16;
 	}
 
-	// hw cannot send polling messages
-	if (msg->len < 2){
-		dev_warn(dev, "Trying to send a polling message, but hw cannot send any");
-		return -EINVAL;
-	}
-
 	// Device msg len already accounts for header
-	payload_len = msg->len - 2;
+	payload_len = msg->len - 1;
 
 	// Send data length
 	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_WRITE_DATA_LENGTH,
@@ -392,10 +386,10 @@ static int secocec_adap_transmit(struct cec_adapter *adap, u8 attempts,
 	for (i = 0; i < payload_len / 2 + payload_len % 2; i++) {
 
 		// hi byte
-		reg = msg->msg[ (i<<1)+1 + 2 ] << 8;
+		reg = msg->msg[ (i<<1)+1 + 1 ] << 8;
 
 		// lo
-		reg |= msg->msg[ (i<<1) + 2 ];
+		reg |= msg->msg[ (i<<1) + 1 ];
 
 		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
 				   CEC_WRITE_DATA_00 + i, reg,
@@ -404,28 +398,22 @@ static int secocec_adap_transmit(struct cec_adapter *adap, u8 attempts,
 			goto err;
 	}
 
-	// Send msg destination
-	destination = msg->msg[0] & 0x0F;
-	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_WRITE_DESTINATION,
-			   destination, SMBUS_WRITE, &result);
-	if (status != 0)
-		goto err;
 
-	// Send Operation ID and fire msg
+	// Send Operation ID if present
 	if (payload_len > 0) {
 		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
 				   CEC_WRITE_OPERATION_ID, msg->msg[1],
 				   SMBUS_WRITE, &result);
 		if (status != 0)
 			goto err;
-	} else {
-		// write 0 if no opID (not supported at the moment)
-		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
-				   CEC_WRITE_OPERATION_ID, 0,
-				   SMBUS_WRITE, &result);
-		if (status != 0)
-			goto err;
 	}
+
+	// Send msg destination and fire msg
+	destination = msg->msg[0] & 0x0F;
+	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_WRITE_DESTINATION,
+			   destination, SMBUS_WRITE, &result);
+	if (status != 0)
+		goto err;
 
 	return 0;
 
@@ -494,13 +482,13 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short StatusReg)
 	payload_len = ReadReg;
 	dev_dbg(dev, "Incoming message (payload len %d):", payload_len);
 
-	/* Device msg len already accounts for the header */
-	msg.len = payload_len + 2;
-
-	if (msg.len > 16) {
-		msg.len = 16;
+	if (payload_len > 15) {
+		payload_len = 15;
 		dev_warn(dev, "Message received longer than 16 bytes, cutting");
 	}
+
+	/* Device msg len already accounts for the header */
+	msg.len = payload_len + 1;
 
 	/* Read logical address */
 	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
@@ -530,15 +518,15 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short StatusReg)
 			goto err;
 
 		/* low byte, skipping header */
-		msg.msg[ (i<<1) + 2 ] = ReadReg & 0x00FF ;
+		msg.msg[ (i<<1) + 1 ] = ReadReg & 0x00FF ;
 
 		/* hi byte */
-		msg.msg[ (i<<1)+1 + 2 ] = ( ReadReg & 0xFF00 ) >> 8 ;
+		msg.msg[ (i<<1)+1 + 1 ] = ( ReadReg & 0xFF00 ) >> 8 ;
 	}
 
 	/* Clear last byte if odd len*/
 	if (payload_len % 2)
-		msg.msg[ (i<<1)+1 + 2 ] = 0;
+		msg.msg[ (i<<1)+1 + 1 ] = 0;
 
         for (i = 0; i < msg.len; i++) {
 		pr_debug("\t byte %d : 0x%02x\n", i, msg.msg[i]);
