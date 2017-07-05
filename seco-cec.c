@@ -331,10 +331,10 @@ static int secocec_adap_log_addr(struct cec_adapter *adap, u8 logical_addr)
 		if (status != 0)
 			goto err;
 
-		reg |= 1 << logical_addr;
+		reg = logical_addr;
 
 	} else {
-		dev_dbg(dev, "Invalid addr, resetting addresses");
+		dev_dbg(dev, "Invalid addr, resetting address");
 		reg = 0;
 	}
 
@@ -410,8 +410,6 @@ static int secocec_adap_transmit(struct cec_adapter *adap, u8 attempts,
 			   destination, SMBUS_WRITE, &result);
 	if (status != 0)
 		goto err;
-
-	// msg source not implemented in fw TODO
 
 	// Send Operation ID and fire msg
 	if (payload_len > 0) {
