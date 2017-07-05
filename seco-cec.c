@@ -509,9 +509,8 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short StatusReg)
 	if (status != 0)
 		goto err;
 
-	/* device stores source LA but no destination yet TODO */
-	msg.msg[0] = ( ReadReg & 0x000F ) << 4;
-	msg.msg[0] |= 0x000F;
+	/* device stores source LA and destination */
+	msg.msg[0] = ReadReg ;
 
 	/* Read operation ID */
 	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
