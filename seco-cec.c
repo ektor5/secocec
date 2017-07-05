@@ -214,7 +214,7 @@ static int smbWordOp(
 	if (ret & (BRA_HSTS_ERR_MASK))
 	{
 		outb(0xFF, HSTS);
-		pr_debug("inb(HSTS) = 0x%X\n", ret);
+		pr_debug("smbWordOp HSTS(0x%02X): 0x%X\n", cmd, ret);
 		release_region(m_SMBus_Base_Address, 7);
 		release_region(0xEB, 1);
 		return 5;
@@ -312,7 +312,7 @@ static int secocec_adap_enable(struct cec_adapter *adap, bool enable)
 
 	return 0;
 err:
-	dev_err(dev, "Adapter setup failed");
+	dev_err(dev, "Adapter setup failed (%d)", status);
 	return status;
 }
 
@@ -584,7 +584,7 @@ static irqreturn_t secocec_irq_handler(int irq, void *priv)
 		goto err;
 
 	if (ReadReg & STATUS_REGISTER_1_CEC){
-		dev_dbg(dev, "CEC Interrupt Catched");
+		dev_dbg(dev, "+++++ CEC Interrupt Catched");
 
 		/* Read CEC status register */
 		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_STATUS, 0,
@@ -615,7 +615,7 @@ static irqreturn_t secocec_irq_handler(int irq, void *priv)
 	if (status != 0)
 		goto err;
 
-	dev_dbg(dev, "CEC Interrupt Handled");
+	dev_dbg(dev, "----- CEC Interrupt Handled");
 
 	return IRQ_HANDLED;
 
