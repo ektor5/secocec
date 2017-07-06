@@ -473,7 +473,8 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short StatusReg)
 	struct device *dev = cec->dev;
 	struct cec_msg msg = {};
 	u8 i;
-	u8 payload_len;
+	u8 payload_len, payload_id_len = 0;
+	u8 * payload_msg;
 
 	int status;
 	unsigned short result, ReadReg = 0;
@@ -490,16 +491,16 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short StatusReg)
 	if (status != 0)
 		goto err;
 
-	payload_len = ReadReg;
-	dev_dbg(dev, "Incoming message (payload len %d):", payload_len);
+	payload_id_len = ReadReg;
+	dev_dbg(dev, "Incoming message (payload len %d):", payload_id_len);
 
-	if (payload_len > 15) {
-		payload_len = 15;
+	if (payload_id_len > 15) {
+		payload_id_len = 15;
 		dev_warn(dev, "Message received longer than 16 bytes, cutting");
 	}
 
 	/* Device msg len already accounts for the header */
-	msg.len = payload_len + 1;
+	msg.len = payload_id_len + 1;
 
 	/* Read logical address */
 	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
@@ -511,33 +512,41 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short StatusReg)
 	/* device stores source LA and destination */
 	msg.msg[0] = ReadReg ;
 
-	/* Read operation ID */
-	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
-			   CEC_READ_OPERATION_ID, 0, SMBUS_READ,
-			   &ReadReg);
-	if (status != 0)
-		goto err;
-
-	msg.msg[1] = ReadReg;
-
-	/* device stores 2 bytes in every 16bit register */
-	for (i = 0 ; i < payload_len / 2 + payload_len % 2; i++){
+	/* Read operation ID if present */
+	if (payload_id_len > 0) {
 		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
-				   CEC_READ_DATA_00 + i, 0, SMBUS_READ,
+				   CEC_READ_OPERATION_ID, 0, SMBUS_READ,
 				   &ReadReg);
 		if (status != 0)
 			goto err;
 
-		/* low byte, skipping header */
-		msg.msg[ (i<<1) + 1 ] = ReadReg & 0x00FF ;
-
-		/* hi byte */
-		msg.msg[ (i<<1)+1 + 1 ] = ( ReadReg & 0xFF00 ) >> 8 ;
+		msg.msg[1] = ReadReg;
 	}
 
-	/* Clear last byte if odd len*/
-	if (payload_len % 2)
-		msg.msg[ (i<<1)+1 + 1 ] = 0;
+	/* Read data if present */
+	if (payload_id_len > 1) {
+		payload_len = msg.len - 2;
+		payload_msg = &msg.msg[2];
+
+		/* device stores 2 bytes in every 16bit register */
+		for (i = 0 ; i < payload_len / 2 + payload_len % 2; i++){
+			status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
+					   CEC_READ_DATA_00 + i, 0, SMBUS_READ,
+					   &ReadReg);
+			if (status != 0)
+				goto err;
+
+			/* low byte, skipping header */
+			payload_msg[ (i<<1) ] = ReadReg & 0x00FF ;
+
+			/* hi byte */
+			payload_msg[ (i<<1)+1 ] = ( ReadReg & 0xFF00 ) >> 8 ;
+		}
+
+		/* Clear last byte if odd len */
+		if (payload_len % 2)
+			payload_msg[ (i<<1)+1 ] = 0;
+	}
 
         for (i = 0; i < msg.len; i++) {
 		pr_debug("\t byte %d : 0x%02x\n", i, msg.msg[i]);
