@@ -309,21 +309,19 @@ static int secocec_adap_log_addr(struct cec_adapter *adap, u8 logical_addr)
 	struct secocec_data *cec = adap->priv;
 	struct device *dev = cec->dev;
 	int status;
-	unsigned short result, reg;
+	unsigned short result, reg, ReadReg = 0;
 
 	if (logical_addr != CEC_LOG_ADDR_INVALID){
-
-		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_Device_LA,
-				   0, SMBUS_READ, &reg);
-		if (status != 0)
-			goto err;
-
 		reg = logical_addr;
-
 	} else {
 		dev_dbg(dev, "Invalid addr, resetting address");
 		reg = 0xF;
 	}
+
+	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, ENABLE_REGISTER_1, 0,
+			   SMBUS_READ, &ReadReg);
+	if (status != 0)
+		goto err;
 
 	dev_dbg(dev, "Set logical address: Disabling device");
 	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, ENABLE_REGISTER_1,
@@ -340,7 +338,7 @@ static int secocec_adap_log_addr(struct cec_adapter *adap, u8 logical_addr)
 		goto err;
 
 
-	dev_dbg(dev, "Set logical address: Enabling device");
+	dev_dbg(dev, "Set logical address: Re-enabling device");
 	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, ENABLE_REGISTER_1,
 			   ReadReg | ENABLE_REGISTER_1_CEC, SMBUS_WRITE,
 			   &result);
