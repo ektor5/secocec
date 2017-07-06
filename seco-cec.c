@@ -242,12 +242,6 @@ static int secocec_adap_enable(struct cec_adapter *adap, bool enable)
 	unsigned short result, ReadReg = 0;
 
 	if (enable) {
-		/* Clear logical addresses */
-		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_Device_LA, 0,
-				   SMBUS_WRITE, &result);
-		if (status != 0)
-			goto err;
-
 		/* Clear the status register */
 		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, STATUS_REGISTER_1, 0,
 				   SMBUS_READ, &ReadReg);
@@ -276,12 +270,6 @@ static int secocec_adap_enable(struct cec_adapter *adap, bool enable)
 		dev_dbg(dev, "Device enabled");
 
 	} else {
-		/* Clear logical addresses */
-		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, ENABLE_REGISTER_1, 0,
-				   SMBUS_READ, &ReadReg);
-		if (status != 0)
-			goto err;
-
 		/* Clear the status register */
 		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, STATUS_REGISTER_1, 0,
 				   SMBUS_READ, &ReadReg);
