@@ -362,8 +362,9 @@ static int secocec_adap_transmit(struct cec_adapter *adap, u8 attempts,
 	int status;
 	unsigned short result;
 	unsigned short reg;
-        unsigned short payload_len, destination;
+	unsigned short payload_len, payload_id_len, destination = 0;
 	u8 i;
+	u8 * payload_msg;
 
 	dev_dbg(dev, "Sending message (len %d)", msg->len);
 
@@ -377,38 +378,45 @@ static int secocec_adap_transmit(struct cec_adapter *adap, u8 attempts,
 	}
 
 	// Device msg len already accounts for header
-	payload_len = msg->len - 1;
+	payload_id_len = msg->len - 1;
 
 	// Send data length
 	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_WRITE_DATA_LENGTH,
-			   payload_len, SMBUS_WRITE, &result);
+			   payload_id_len, SMBUS_WRITE, &result);
 	if (status != 0)
 		goto err;
 
-	// Copy message into registers
-	for (i = 0; i < payload_len / 2 + payload_len % 2; i++) {
-
-		// hi byte
-		reg = msg->msg[ (i<<1)+1 + 1 ] << 8;
-
-		// lo
-		reg |= msg->msg[ (i<<1) + 1 ];
-
-		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
-				   CEC_WRITE_DATA_00 + i, reg,
-				   SMBUS_WRITE, &result);
-		if (status != 0)
-			goto err;
-	}
-
-
 	// Send Operation ID if present
-	if (payload_len > 0) {
+	if (payload_id_len > 0) {
 		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
 				   CEC_WRITE_OPERATION_ID, msg->msg[1],
 				   SMBUS_WRITE, &result);
 		if (status != 0)
 			goto err;
+	}
+
+	// Send data if present
+	if (payload_id_len > 1)
+	{
+		// Only data;
+		payload_len = msg->len - 2;
+		payload_msg = &msg->msg[2];
+
+		// Copy message into registers
+		for (i = 0; i < payload_len / 2 + payload_len % 2; i++) {
+
+			// hi byte
+			reg = payload_msg[ (i<<1)+1 ] << 8;
+
+			// lo
+			reg |= payload_msg[ (i<<1) ];
+
+			status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
+					   CEC_WRITE_DATA_00 + i, reg,
+					   SMBUS_WRITE, &result);
+			if (status != 0)
+				goto err;
+		}
 	}
 
 	// Send msg destination and fire msg
