@@ -416,8 +416,8 @@ static int secocec_adap_transmit(struct cec_adapter *adap, u8 attempts,
 		}
 	}
 
-	// Send msg destination and fire msg
-	destination = msg->msg[0] & 0x0F;
+	// Send msg source/destination and fire msg
+	destination = msg->msg[0];
 	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_WRITE_DESTINATION,
 			   destination, SMBUS_WRITE, &result);
 	if (status != 0)
