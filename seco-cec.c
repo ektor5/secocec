@@ -539,10 +539,6 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short StatusReg)
 			/* hi byte */
 			payload_msg[ (i<<1)+1 ] = ( ReadReg & 0xFF00 ) >> 8 ;
 		}
-
-		/* Clear last byte if odd len */
-		if (payload_len % 2)
-			payload_msg[ (i<<1)+1 ] = 0;
 	}
 
         for (i = 0; i < msg.len; i++) {
