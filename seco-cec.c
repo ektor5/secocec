@@ -261,9 +261,8 @@ static int secocec_adap_enable(struct cec_adapter *adap, bool enable)
 
 		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
 				   ENABLE_REGISTER_1,
-				   ReadReg | ENABLE_REGISTER_1_CEC |
-				   ENABLE_REGISTER_1_IRDA_RC5, SMBUS_WRITE,
-				   &result);
+				   ReadReg | ENABLE_REGISTER_1_CEC,
+				   SMBUS_WRITE, &result);
 		if (status != 0)
 			goto err;
 
