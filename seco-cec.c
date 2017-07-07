@@ -369,9 +369,9 @@ static int secocec_adap_transmit(struct cec_adapter *adap, u8 attempts,
 		pr_debug("\t byte %d : 0x%02x\n", i, msg->msg[i]);
         }
 
-	if (msg->len > 16){
-		dev_warn(dev, "Trying to send a message longer than 16 bytes, cutting");
-		msg->len = 16;
+	if (msg->len > 12){
+		dev_warn(dev, "Trying to send a message longer than 12 bytes, cutting");
+		msg->len = 12;
 	}
 
 	// Device msg len already accounts for header
@@ -491,9 +491,9 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short StatusReg)
 	payload_id_len = ReadReg;
 	dev_dbg(dev, "Incoming message (payload len %d):", payload_id_len);
 
-	if (payload_id_len > 15) {
-		payload_id_len = 15;
-		dev_warn(dev, "Message received longer than 16 bytes, cutting");
+	if (payload_id_len > 11) {
+		payload_id_len = 11;
+		dev_warn(dev, "Message received longer than 12 bytes, cutting");
 	}
 
 	/* Device msg len already accounts for the header */
