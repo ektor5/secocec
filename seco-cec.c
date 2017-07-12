@@ -594,7 +594,7 @@ static irqreturn_t secocec_irq_handler(int irq, void *priv)
 	struct device *dev = cec->dev;
 
 	int status;
-	unsigned short result, ReadReg, StatusReg = 0;
+	unsigned short result, ReadReg, StatusReg, reg = 0;
 
 	/*  Read status register */
 	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, STATUS_REGISTER_1, 0,
@@ -621,16 +621,19 @@ static irqreturn_t secocec_irq_handler(int irq, void *priv)
 		     (~StatusReg & CEC_STATUS_MSG_RECEIVED_MASK) )
 			dev_warn(dev, "Message not received or sent, but interrupt fired \\_\"._/");
 
+		reg = STATUS_REGISTER_1_CEC;
+
 	}
 
 	if (ReadReg & STATUS_REGISTER_1_IRDA_RC5){
 		dev_dbg(dev, "IRDA RC5 Interrupt Catched");
+		reg |= STATUS_REGISTER_1_IRDA_RC5;
 		//TODO IRDA RX
 	}
 
 	/*  Reset status register */
 	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, STATUS_REGISTER_1,
-			   ReadReg, SMBUS_WRITE, &result);
+			   reg, SMBUS_WRITE, &result);
 	if (status != 0)
 		goto err;
 
@@ -641,8 +644,14 @@ static irqreturn_t secocec_irq_handler(int irq, void *priv)
 err:
 	dev_err(dev, "IRQ: Read/Write SMBus operation failed");
 
+	/*  Reset status register */
+	reg = STATUS_REGISTER_1_CEC | STATUS_REGISTER_1_IRDA_RC5;
+	smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, STATUS_REGISTER_1,
+		  reg, SMBUS_WRITE, &result);
+
 	return IRQ_HANDLED;
 }
+
 static irqreturn_t secocec_irq_handler_quick(int irq, void *priv)
 {
 	//TODO irq handler
