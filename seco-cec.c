@@ -439,28 +439,34 @@ static int secocec_tx_done(struct cec_adapter *adap, unsigned short StatusReg)
 	unsigned short result = 0;
 
 	if ( StatusReg & CEC_STATUS_TX_ERROR_MASK ) {
-		dev_warn(dev, "Previous message sent with errors");
-		status = -EIO;
-		goto txerr;
+
+		if (StatusReg & CEC_STATUS_TX_LINE_ERROR) {
+			cec_transmit_done(adap, CEC_TX_STATUS_ARB_LOST, 1, 0, 0, 0);
+			status = -EBUSY;
+			dev_warn(dev, "Transmit failed (LINE_ERR)");
+		} else if (StatusReg & CEC_STATUS_TX_NACK_ERROR) {
+			cec_transmit_done(adap, CEC_TX_STATUS_NACK, 0, 1, 0, 0);
+			status = -EAGAIN;
+			dev_dbg(dev, "Transmit not acknowledged (NACK)");
+		} else {
+			cec_transmit_done(adap, CEC_TX_STATUS_ERROR, 0, 0, 0, 1);
+			status = -EIO;
+			dev_warn(dev, "Transmit failed (ERROR)");
+		}
+
+	} else {
+
+		dev_dbg(dev, "Transmitted frame successfully");
+		cec_transmit_done(adap, CEC_TX_STATUS_OK, 0, 0, 0, 0);
+		status = 0;
 	}
 
-	dev_dbg(dev, "Transmitted frame successfully");
-
-	StatusReg = CEC_STATUS_MSG_SENT_MASK;
-	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_STATUS,
-			   StatusReg, SMBUS_WRITE, &result);
-	if (status != 0)
-		goto txerr;
-
-	return 0;
-
-txerr:
-	/* Reset error reg */
-	StatusReg = CEC_STATUS_TX_ERROR_MASK | CEC_STATUS_MSG_SENT_MASK;
+	/* Reset status reg */
+	StatusReg = CEC_STATUS_TX_ERROR_MASK | CEC_STATUS_MSG_SENT_MASK |
+		CEC_STATUS_TX_NACK_ERROR | CEC_STATUS_TX_LINE_ERROR ;
 	smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_STATUS,
 			   StatusReg, SMBUS_WRITE, &result);
 
-	dev_err(dev, "Transmit failed (%d)", status);
 	return status;
 }
 

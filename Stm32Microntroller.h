@@ -137,10 +137,13 @@
 // Status data
 //
 
-#define CEC_STATUS_MSG_RECEIVED_MASK		((1<<0)) 
-#define CEC_STATUS_RX_ERROR_MASK		((1<<1)) 
-#define CEC_STATUS_MSG_SENT_MASK		((1<<2)) 
-#define CEC_STATUS_TX_ERROR_MASK		((1<<3)) 
+#define CEC_STATUS_MSG_RECEIVED_MASK		BIT(0)
+#define CEC_STATUS_RX_ERROR_MASK		BIT(1)
+#define CEC_STATUS_MSG_SENT_MASK		BIT(2)
+#define CEC_STATUS_TX_ERROR_MASK		BIT(3)
+
+#define CEC_STATUS_TX_NACK_ERROR		BIT(4)
+#define CEC_STATUS_TX_LINE_ERROR		BIT(5)
 
 //
 // After G3 values
