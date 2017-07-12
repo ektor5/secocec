@@ -65,7 +65,7 @@
 #define  CEC_READ_DATA_04                      0x2E
 #define  CEC_READ_DATA_06                      0x2F
 #define  CEC_READ_DATA_08                      0x30
-#define  CEC_READ_INITIATOR_LOGICAL_ADDRESS    0x31
+#define  CEC_READ_BYTE0                        0x31
 #define  CEC_WRITE_OPERATION_ID                0x32   //bit[7:0] operationID
 #define  CEC_WRITE_DATA_LENGTH                 0x33
 #define  CEC_WRITE_DATA_00                     0x34
@@ -73,7 +73,7 @@
 #define  CEC_WRITE_DATA_04                     0x36
 #define  CEC_WRITE_DATA_06                     0x37
 #define  CEC_WRITE_DATA_08                     0x38
-#define  CEC_WRITE_DESTINATION                 0x39
+#define  CEC_WRITE_BYTE0                       0x39
 
 //
 // DFU mode register

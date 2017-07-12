@@ -418,7 +418,7 @@ static int secocec_adap_transmit(struct cec_adapter *adap, u8 attempts,
 
 	// Send msg source/destination and fire msg
 	destination = msg->msg[0];
-	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_WRITE_DESTINATION,
+	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_WRITE_BYTE0,
 			   destination, SMBUS_WRITE, &result);
 	if (status != 0)
 		goto err;
@@ -507,7 +507,7 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short StatusReg)
 
 	/* Read logical address */
 	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
-			   CEC_READ_INITIATOR_LOGICAL_ADDRESS, 0, SMBUS_READ,
+			   CEC_READ_BYTE0, 0, SMBUS_READ,
 			   &ReadReg);
 	if (status != 0)
 		goto err;
