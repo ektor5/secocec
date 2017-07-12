@@ -46,7 +46,7 @@
 #define SMBUS_WRITE	0
 #define SMBUS_READ	1
 
-#define SMBTIMEOUT 10000
+#define SMBTIMEOUT 0xFFFF
 
 #define CMD_BYTE_DATA					0
 #define CMD_WORD_DATA					1
@@ -113,7 +113,7 @@ static int smbWordOp(
 		     unsigned short * result
 		    )
 {
-	unsigned long count;
+	unsigned int count;
 	short DataFormat_Local;
 	int ret;
 
@@ -189,7 +189,7 @@ static int smbWordOp(
 	{
 		outb((unsigned char)data, HDAT0);
 		outb((unsigned char)(data >> 8), HDAT1);
-		pr_debug("smbWordOp WRITE (0x%02x): 0x%04x\n", cmd, data);
+		pr_debug("smbWordOp WRITE (0x%02x - count %05d): 0x%04x\n", cmd, count, data);
 	}
 
 	outb(BRA_START + DataFormat_Local, HCNT);
@@ -223,7 +223,7 @@ static int smbWordOp(
 	if (operation == SMBUS_READ)
 	{
 		*result = ((inb(HDAT0) & 0xFF) + ((inb(HDAT1) & 0xFF) << 8));
-		pr_debug("smbWordOp READ (0x%02x): 0x%04x\n", cmd, *result);
+		pr_debug("smbWordOp READ (0x%02x - count %05d): 0x%04x\n", cmd, count, *result);
 	}
 
 	outb(0xFF, HSTS);
