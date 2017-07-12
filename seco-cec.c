@@ -175,7 +175,7 @@ static int smbWordOp(
 		outb(0xFF, HSTS);
 		release_region(0xEB, 1);
 		pr_debug("smbWordOp RELEASE 0xEB\n");
-		release_region(m_SMBus_Base_Address, 14);
+		release_region(m_SMBus_Base_Address, 7);
 		pr_debug("smbWordOp RELEASE Base Addr\n");
 		return 3;
 	}
