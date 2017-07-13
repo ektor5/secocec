@@ -84,6 +84,9 @@ struct secocec_data {
 	struct device *dev;
 	struct platform_device *pdev;
 	struct cec_adapter *cec_adap;
+	struct rc_dev *irda_rc;
+	char irda_input_name[32];
+	char irda_input_phys[32];
 	int irq;
 };
 
@@ -287,10 +290,9 @@ static int secocec_adap_enable(struct cec_adapter *adap, bool enable)
 			goto err;
 
 		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
-				   ENABLE_REGISTER_1, ReadReg &
-				   ~ENABLE_REGISTER_1_CEC &
-				   ~ENABLE_REGISTER_1_IRDA_RC5, SMBUS_WRITE,
-				   &result);
+				   ENABLE_REGISTER_1,
+				   ReadReg & ~ENABLE_REGISTER_1_CEC,
+				   SMBUS_WRITE, &result);
 		if (status != 0)
 			goto err;
 
@@ -587,12 +589,121 @@ struct cec_adap_ops secocec_cec_adap_ops = {
 //	.received = secocec_received,
 };
 
+static int secocec_irda_probe(void *priv)
+{
+	struct secocec_data *cec = priv;
+	struct device *dev = cec->dev;
+	unsigned short ReadReg, result;
+	int status;
+
+	/* Prepare the RC input device */
+	cec->irda_rc = devm_rc_allocate_device(dev, RC_DRIVER_SCANCODE);
+	if (!cec->irda_rc) {
+		dev_err(dev, "Failed to allocate memory for rc_dev");
+		return -ENOMEM;
+	}
+
+	snprintf(cec->irda_input_name, sizeof(cec->irda_input_name),
+		 "RC for %s", dev_name(dev));
+	snprintf(cec->irda_input_phys, sizeof(cec->irda_input_phys),
+		 "%s/input0", dev_name(dev));
+
+	cec->irda_rc->input_name = cec->irda_input_name;
+	cec->irda_rc->input_phys = cec->irda_input_phys;
+	cec->irda_rc->input_id.bustype = BUS_CEC;
+	cec->irda_rc->input_id.vendor = 0;
+	cec->irda_rc->input_id.product = 0;
+	cec->irda_rc->input_id.version = 1;
+	cec->irda_rc->driver_name = SECOCEC_DEV_NAME;
+	cec->irda_rc->allowed_protocols = RC_BIT_RC5;
+	cec->irda_rc->priv = cec;
+	cec->irda_rc->map_name = RC_MAP_RC5_TV;
+	cec->irda_rc->timeout = MS_TO_NS(100);
+
+	/* Clear the status register */
+	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, STATUS_REGISTER_1, 0,
+			   SMBUS_READ, &ReadReg);
+	if (status != 0)
+		goto err;
+
+	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, STATUS_REGISTER_1,
+			   ReadReg, SMBUS_WRITE, &result);
+	if (status != 0)
+		goto err;
+
+	/* Enable the interrupts */
+	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, ENABLE_REGISTER_1, 0,
+			   SMBUS_READ, &ReadReg);
+	if (status != 0)
+		goto err;
+
+	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
+			   ENABLE_REGISTER_1,
+			   ReadReg | ENABLE_REGISTER_1_IRDA_RC5,
+			   SMBUS_WRITE, &result);
+	if (status != 0)
+		goto err;
+
+	dev_dbg(dev, "IRDA enabled");
+
+	status = devm_rc_register_device(dev, cec->irda_rc);
+
+	if (status) {
+		dev_err(dev, "Failed to prepare input device");
+		cec->irda_rc = NULL;
+		goto err;
+	}
+
+	return 0;
+
+err:
+	smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, ENABLE_REGISTER_1, 0,
+			   SMBUS_READ, &ReadReg);
+
+	smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
+		  ENABLE_REGISTER_1,
+		  ReadReg & ~ENABLE_REGISTER_1_IRDA_RC5,
+		  SMBUS_WRITE, &result);
+
+	dev_dbg(dev, "IRDA disabled");
+	return status; 
+}
+
+
+static int secocec_irda_rx(struct secocec_data *priv)
+{
+	struct secocec_data *cec = priv;
+	struct device *dev = cec->dev;
+	unsigned short ReadReg;
+	int status, key, toggle;
+
+	if (!cec->irda_rc)
+		return -ENODEV;
+
+	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, IRDA_DATA, 0,
+			   SMBUS_READ, &ReadReg);
+	if (status != 0)
+		goto err;
+
+	key = ReadReg & IRDA_COMMAND_MASK;
+	toggle = (ReadReg & IRDA_TOGGLE_MASK) >> IRDA_TOGGLE_SHL;
+
+	rc_keydown(cec->irda_rc, RC_TYPE_RC5, key, toggle);
+
+	dev_dbg(dev, "IRDA key pressed: 0x%04x toggle 0x%04x", key, toggle);
+
+	return 0;
+
+err:
+	dev_err(dev, "IRDA Receive message failed (%d)", status);
+	return -EIO;
+}
+
 static irqreturn_t secocec_irq_handler(int irq, void *priv)
 {
 	//TODO irq handler
 	struct secocec_data *cec = priv;
 	struct device *dev = cec->dev;
-
 	int status;
 	unsigned short result, ReadReg, StatusReg, reg = 0;
 
@@ -628,7 +739,8 @@ static irqreturn_t secocec_irq_handler(int irq, void *priv)
 	if (ReadReg & STATUS_REGISTER_1_IRDA_RC5){
 		dev_dbg(dev, "IRDA RC5 Interrupt Catched");
 		reg |= STATUS_REGISTER_1_IRDA_RC5;
-		//TODO IRDA RX
+
+		secocec_irda_rx(cec);
 	}
 
 	/*  Reset status register */
@@ -850,6 +962,8 @@ static int secocec_probe(struct platform_device *pdev)
 	if (ret)
 		goto err_delete_adapter;
 
+	secocec_irda_probe(secocec);
+
 	platform_set_drvdata(pdev, secocec);
 
 	dev_dbg(dev, "Device registered");
@@ -869,9 +983,24 @@ err:
 static int secocec_remove(struct platform_device *pdev)
 {
 	struct secocec_data *secocec = platform_get_drvdata(pdev);
+	unsigned short ReadReg, result;
+
+	if (secocec->irda_rc != NULL) {
+		smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, ENABLE_REGISTER_1, 0,
+			  SMBUS_READ, &ReadReg);
+
+		smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
+			  ENABLE_REGISTER_1,
+			  ReadReg & ~ENABLE_REGISTER_1_IRDA_RC5,
+			  SMBUS_WRITE, &result);
+
+		dev_dbg(&pdev->dev, "IRDA disabled");
+	}
 
 	//release cec
 	cec_unregister_adapter(secocec->cec_adap);
+
+	dev_dbg(&pdev->dev, "CEC device removed");
 
 	return 0;
 }

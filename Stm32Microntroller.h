@@ -74,6 +74,7 @@
 #define  CEC_WRITE_DATA_06                     0x37
 #define  CEC_WRITE_DATA_08                     0x38
 #define  CEC_WRITE_BYTE0                       0x39
+#define  IRDA_DATA                             0x3A
 
 //
 // DFU mode register
@@ -144,6 +145,16 @@
 
 #define CEC_STATUS_TX_NACK_ERROR		BIT(4)
 #define CEC_STATUS_TX_LINE_ERROR		BIT(5)
+
+//
+// IRDA
+//
+#define IRDA_COMMAND_MASK	                0x007F
+#define IRDA_COMMAND_SHL	                0
+#define IRDA_ADDRESS_MASK	                0x1F00
+#define IRDA_ADDRESS_SHL	                7
+#define IRDA_TOGGLE_MASK	                0x8000
+#define IRDA_TOGGLE_SHL				15
 
 //
 // After G3 values
