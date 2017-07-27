@@ -660,40 +660,15 @@ static irqreturn_t secocec_irq_handler_quick(int irq, void *priv)
 
 }
 
-static const struct acpi_gpio_params irq_gpios = { 0, 0, false };	// crs_entry_index, line_index, active_low
-
-static const struct acpi_gpio_mapping secocec_acpi_gpios[] = {
-	{"irq-gpios", &irq_gpios, 1},
-	{},
-};
-
 static int secocec_acpi_probe(struct secocec_data *sdev)
 {
 	struct device *dev = sdev->dev;
 	struct platform_device *pdev = sdev->pdev;
-	LIST_HEAD(resources);
-	const struct acpi_gpio_mapping *gpio_mapping = secocec_acpi_gpios;
-	const struct acpi_device_id *id;
 	struct gpio_desc *gpio;
 	int ret;
 	int irq = 0;
 
-	/* Retrieve GPIO data from ACPI, if _DSD is present */
-	id = acpi_match_device(dev->driver->acpi_match_table, dev);
-	if (id) {
-		dev_dbg(dev, "_DSD Found, using ACPI package");
-		gpio_mapping =
-		    (const struct acpi_gpio_mapping *)id->driver_data;
-	} else {
-		dev_dbg(dev, "no _DSD Found, using package");
-	}
-
-	ret = acpi_dev_add_driver_gpios(ACPI_COMPANION(dev), gpio_mapping);
-	if (ret) {
-		dev_dbg(dev, "Cannot add gpio irq data to the driver");
-	}
-
-	gpio = devm_gpiod_get(dev, "irq-gpios", GPIOF_IN);
+	gpio = devm_gpiod_get(dev, NULL, GPIOF_IN);
 	if (IS_ERR(gpio)) {
 		dev_err(dev, "Cannot request interrupt gpio");
 		return PTR_ERR(gpio);
@@ -701,8 +676,8 @@ static int secocec_acpi_probe(struct secocec_data *sdev)
 
 	ret = gpiod_to_irq(gpio);
 	if (ret < 0) {
-		dev_err(dev, "gpio is not binded to IRQ");
-	} else { 
+		dev_err(dev, "GPIO is not binded to IRQ");
+	} else {
 		irq = ret;
 	}
 
@@ -711,12 +686,11 @@ static int secocec_acpi_probe(struct secocec_data *sdev)
 	if (irq != acpi_dev_gpio_irq_get(ACPI_COMPANION(dev), 0) ){
 		dev_warn(dev, "IRQ %d is not GPIO %d (%d), available %d\n",
 			 irq, desc_to_gpio(gpio),
-			 acpi_dev_gpio_irq_get(ACPI_COMPANION(dev), 0), platform_irq_count(pdev));
+			 acpi_dev_gpio_irq_get(ACPI_COMPANION(dev), 0),
+			 platform_irq_count(pdev)); 
 	}
 
 	sdev->irq = irq;
-
-	acpi_dev_free_resource_list(&resources);
 
 	return 0;
 
