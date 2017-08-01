@@ -41,7 +41,7 @@
 #define GPIO_I2C6_SCL 51
 #define GPIOCHIP_SOUTHWEST 456
 
-#define MICRO_ADDRESS 	0x40
+#define MICRO_ADDRESS	0x40
 
 #define SMBUS_WRITE	0
 #define SMBUS_READ	1
@@ -50,7 +50,6 @@
 
 #define CMD_BYTE_DATA					0
 #define CMD_WORD_DATA					1
-
 
 // --------------------------------------------------------
 // ------------ SMBus definitons for Braswell ------------
@@ -64,10 +63,10 @@
 #define BRA_HOST_BUSY			(1<<0)
 #define BRA_HSTS_ERR_MASK   (BRA_FAILED_OP | BRA_BUS_ERR | BRA_DEV_ERR)
 
-#define BRA_PEC_EN 			(1<<7)
+#define BRA_PEC_EN			(1<<7)
 #define	BRA_START			(1<<6)
 #define BRA_LAST__BYTE			(1<<5)
-#define BRA_SMB_CMD 			(7<<2)
+#define BRA_SMB_CMD			(7<<2)
 #define	BRA_SMB_CMD_QUICK		(0<<2)
 #define BRA_SMB_CMD_BYTE		(1<<2)
 #define	BRA_SMB_CMD_BYTE_DATA		(2<<2)
@@ -75,18 +74,18 @@
 #define	BRA_SMB_CMD_PROCESS_CALL	(4<<2)
 #define BRA_SMB_CMD_BLOCK		(5<<2)
 #define	BRA_SMB_CMD_I2CREAD		(6<<2)
-#define BRA_SMB_CMD_BLOCK_PROCESS 	(7<<2)
+#define BRA_SMB_CMD_BLOCK_PROCESS	(7<<2)
 #define BRA_INTREN			(1<<0)
 
 /* ---------------------------------------------------------------- */
 
 #define BRA_SMB_BASE_ADDR  0x2040
-#define HSTS               BRA_SMB_BASE_ADDR  +  0
-#define HCNT               BRA_SMB_BASE_ADDR  +  2
-#define HCMD               BRA_SMB_BASE_ADDR  +  3
-#define XMIT_SLVA          BRA_SMB_BASE_ADDR  +  4
-#define HDAT0              BRA_SMB_BASE_ADDR  +  5
-#define HDAT1              BRA_SMB_BASE_ADDR  +  6
+#define HSTS               (BRA_SMB_BASE_ADDR + 0)
+#define HCNT               (BRA_SMB_BASE_ADDR + 2)
+#define HCMD               (BRA_SMB_BASE_ADDR + 3)
+#define XMIT_SLVA          (BRA_SMB_BASE_ADDR + 4)
+#define HDAT0              (BRA_SMB_BASE_ADDR + 5)
+#define HDAT1              (BRA_SMB_BASE_ADDR + 6)
 
 struct secocec_data {
 	struct device *dev;
@@ -112,44 +111,44 @@ static struct secocec_data *secocec_data_init(struct platform_device *pdev)
 	return drvdata;
 }
 
-static int smbWordOp(short DataFormat, 
-		     unsigned short slaveAddr, 
-		     unsigned char cmd, 
-		     unsigned short data, 
-		     unsigned char operation, 
-		     unsigned short * result)
+static int smbWordOp(short DataFormat,
+		     unsigned short slaveAddr,
+		     unsigned char cmd,
+		     unsigned short data,
+		     unsigned char operation, unsigned short *result)
 {
 	unsigned int count;
 	short DataFormat_Local;
 	int ret;
 
-
-	switch (DataFormat)
-	{
-	case CMD_BYTE_DATA:		DataFormat_Local = BRA_SMB_CMD_BYTE_DATA; break;
-	case CMD_WORD_DATA:		DataFormat_Local = BRA_SMB_CMD_WORD_DATA; break;
+	switch (DataFormat) {
+	case CMD_BYTE_DATA:
+		DataFormat_Local = BRA_SMB_CMD_BYTE_DATA;
+		break;
+	case CMD_WORD_DATA:
+		DataFormat_Local = BRA_SMB_CMD_WORD_DATA;
+		break;
 	default:
-					return 1; 
-					break;
+		return 1;
 	}
 
-
-	if(!request_muxed_region(0xEB, 1, "CEC00001"))
-	{
+	if (!request_muxed_region(0xEB, 1, "CEC00001")) {
 		pr_debug("request_region 0xEB fail\n");
 		return 1;
 	}
 
-	if(!request_muxed_region(BRA_SMB_BASE_ADDR, 7, "CEC00001"))
-	{
+	if (!request_muxed_region(BRA_SMB_BASE_ADDR, 7, "CEC00001")) {
 		pr_debug("request_region BRA_SMB_BASE_ADDR fail\n");
 		release_region(0xEB, 1);
 		return 2;
 	}
 
-	for(count=0; (count <= SMBTIMEOUT)&&(inb(HSTS)&BRA_INUSE_STS); ++count);
+	for (count = 0; (count <= SMBTIMEOUT) && (inb(HSTS) & BRA_INUSE_STS);
+	     ++count){
+		nop();
+	}
 
-	if (count > SMBTIMEOUT){
+	if (count > SMBTIMEOUT) {
 		pr_debug("smbWordOp SMBTIMEOUT\n");
 		outb(0xFF, HSTS);
 		release_region(0xEB, 1);
@@ -163,21 +162,22 @@ static int smbWordOp(short DataFormat,
 	outb((unsigned char)(slaveAddr & 0xFE) | operation, XMIT_SLVA);
 	outb(cmd, HCMD);
 	inb(HCNT);
-	if (operation == SMBUS_WRITE){
+	if (operation == SMBUS_WRITE) {
 		outb((unsigned char)data, HDAT0);
 		outb((unsigned char)(data >> 8), HDAT1);
-		pr_debug("smbWordOp WRITE (0x%02x - count %05d): 0x%04x\n", cmd, count, data);
+		pr_debug("smbWordOp WRITE (0x%02x - count %05d): 0x%04x\n", cmd,
+			 count, data);
 	}
 
 	outb(BRA_START + DataFormat_Local, HCNT);
 
-
-	for(count = 0; (count <= SMBTIMEOUT) && ((inb(HSTS)&BRA_HOST_BUSY)); count++){
+	for (count = 0; (count <= SMBTIMEOUT) && ((inb(HSTS) & BRA_HOST_BUSY));
+	     count++) {
 		outb(0x00, 0xEB);
 		outb(0x01, 0xEB);
 	}
 
-	if (count > SMBTIMEOUT){
+	if (count > SMBTIMEOUT) {
 		outb(0xFF, HSTS);
 		pr_debug("smbWordOp SMBTIMEOUT_1\n");
 		release_region(BRA_SMB_BASE_ADDR, 7);
@@ -186,7 +186,7 @@ static int smbWordOp(short DataFormat,
 	}
 
 	ret = inb(HSTS);
-	if (ret & (BRA_HSTS_ERR_MASK)){
+	if (ret & (BRA_HSTS_ERR_MASK)) {
 		outb(0xFF, HSTS);
 		pr_debug("smbWordOp HSTS(0x%02X): 0x%X\n", cmd, ret);
 		release_region(BRA_SMB_BASE_ADDR, 7);
@@ -194,9 +194,10 @@ static int smbWordOp(short DataFormat,
 		return 5;
 	}
 
-	if (operation == SMBUS_READ){
+	if (operation == SMBUS_READ) {
 		*result = ((inb(HDAT0) & 0xFF) + ((inb(HDAT1) & 0xFF) << 8));
-		pr_debug("smbWordOp READ (0x%02x - count %05d): 0x%04x\n", cmd, count, *result);
+		pr_debug("smbWordOp READ (0x%02x - count %05d): 0x%04x\n", cmd,
+			 count, *result);
 	}
 
 	outb(0xFF, HSTS);
@@ -215,19 +216,22 @@ static int secocec_adap_enable(struct cec_adapter *adap, bool enable)
 
 	if (enable) {
 		/* Clear the status register */
-		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, STATUS_REGISTER_1, 0,
-				   SMBUS_READ, &ReadReg);
+		status =
+		    smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, STATUS_REGISTER_1,
+			      0, SMBUS_READ, &ReadReg);
 		if (status != 0)
 			goto err;
 
-		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, STATUS_REGISTER_1,
-				   ReadReg, SMBUS_WRITE, &result);
+		status =
+		    smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, STATUS_REGISTER_1,
+			      ReadReg, SMBUS_WRITE, &result);
 		if (status != 0)
 			goto err;
 
 		/* Enable the interrupts */
-		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, ENABLE_REGISTER_1, 0,
-				   SMBUS_READ, &ReadReg);
+		status =
+		    smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, ENABLE_REGISTER_1,
+			      0, SMBUS_READ, &ReadReg);
 		if (status != 0)
 			goto err;
 
@@ -242,19 +246,22 @@ static int secocec_adap_enable(struct cec_adapter *adap, bool enable)
 
 	} else {
 		/* Clear the status register */
-		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, STATUS_REGISTER_1, 0,
-				   SMBUS_READ, &ReadReg);
+		status =
+		    smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, STATUS_REGISTER_1,
+			      0, SMBUS_READ, &ReadReg);
 		if (status != 0)
 			goto err;
 
-		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, STATUS_REGISTER_1,
-				   ReadReg, SMBUS_WRITE, &result);
+		status =
+		    smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, STATUS_REGISTER_1,
+			      ReadReg, SMBUS_WRITE, &result);
 		if (status != 0)
 			goto err;
 
 		/* Disable the interrupts */
-		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, ENABLE_REGISTER_1, 0,
-				   SMBUS_READ, &ReadReg);
+		status =
+		    smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, ENABLE_REGISTER_1,
+			      0, SMBUS_READ, &ReadReg);
 		if (status != 0)
 			goto err;
 
@@ -282,7 +289,7 @@ static int secocec_adap_log_addr(struct cec_adapter *adap, u8 logical_addr)
 	int status;
 	unsigned short result, reg, ReadReg = 0;
 
-	if (logical_addr != CEC_LOG_ADDR_INVALID){
+	if (logical_addr != CEC_LOG_ADDR_INVALID) {
 		reg = logical_addr;
 	} else {
 		dev_dbg(dev, "Invalid addr, resetting address");
@@ -296,7 +303,7 @@ static int secocec_adap_log_addr(struct cec_adapter *adap, u8 logical_addr)
 
 	dev_dbg(dev, "Set logical address: Disabling device");
 	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, ENABLE_REGISTER_1,
-			   ReadReg & ~ENABLE_REGISTER_1_CEC , SMBUS_WRITE,
+			   ReadReg & ~ENABLE_REGISTER_1_CEC, SMBUS_WRITE,
 			   &result);
 	if (status != 0)
 		goto err;
@@ -307,7 +314,6 @@ static int secocec_adap_log_addr(struct cec_adapter *adap, u8 logical_addr)
 			   reg, SMBUS_WRITE, &result);
 	if (status != 0)
 		goto err;
-
 
 	dev_dbg(dev, "Set logical address: Re-enabling device");
 	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, ENABLE_REGISTER_1,
@@ -333,19 +339,18 @@ static int secocec_adap_transmit(struct cec_adapter *adap, u8 attempts,
 	unsigned short reg;
 	unsigned short payload_len, payload_id_len, destination = 0;
 	u8 i;
-	u8 * payload_msg;
+	u8 *payload_msg;
 
 	dev_dbg(dev, "Sending message (len %d)", msg->len);
 
-        for (i = 0; i < msg->len; i++) {
+	for (i = 0; i < msg->len; i++)
 		pr_debug("\t byte %d : 0x%02x\n", i, msg->msg[i]);
-        }
 
-	if (msg->len > 12){
-		dev_warn(dev, "Trying to send a message longer than 12 bytes, cutting");
+	if (msg->len > 12) {
+		dev_warn(dev,
+			 "Trying to send a message longer than 12 bytes, cutting");
 		msg->len = 12;
 	}
-
 	// Device msg len already accounts for header
 	payload_id_len = msg->len - 1;
 
@@ -363,10 +368,8 @@ static int secocec_adap_transmit(struct cec_adapter *adap, u8 attempts,
 		if (status != 0)
 			goto err;
 	}
-
 	// Send data if present
-	if (payload_id_len > 1)
-	{
+	if (payload_id_len > 1) {
 		// Only data;
 		payload_len = msg->len - 2;
 		payload_msg = &msg->msg[2];
@@ -375,10 +378,10 @@ static int secocec_adap_transmit(struct cec_adapter *adap, u8 attempts,
 		for (i = 0; i < payload_len / 2 + payload_len % 2; i++) {
 
 			// hi byte
-			reg = payload_msg[ (i<<1)+1 ] << 8;
+			reg = payload_msg[(i << 1) + 1] << 8;
 
 			// lo
-			reg |= payload_msg[ (i<<1) ];
+			reg |= payload_msg[(i << 1)];
 
 			status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
 					   CEC_WRITE_DATA_00 + i, reg,
@@ -387,7 +390,6 @@ static int secocec_adap_transmit(struct cec_adapter *adap, u8 attempts,
 				goto err;
 		}
 	}
-
 	// Send msg source/destination and fire msg
 	destination = msg->msg[0];
 	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_WRITE_BYTE0,
@@ -410,10 +412,11 @@ static int secocec_tx_done(struct cec_adapter *adap, unsigned short StatusReg)
 	int status;
 	unsigned short result = 0;
 
-	if ( StatusReg & CEC_STATUS_TX_ERROR_MASK ) {
+	if (StatusReg & CEC_STATUS_TX_ERROR_MASK) {
 
 		if (StatusReg & CEC_STATUS_TX_LINE_ERROR) {
-			cec_transmit_done(adap, CEC_TX_STATUS_ARB_LOST, 1, 0, 0, 0);
+			cec_transmit_done(adap, CEC_TX_STATUS_ARB_LOST, 1, 0, 0,
+					  0);
 			status = -EBUSY;
 			dev_warn(dev, "Transmit failed (LINE_ERR)");
 		} else if (StatusReg & CEC_STATUS_TX_NACK_ERROR) {
@@ -421,7 +424,8 @@ static int secocec_tx_done(struct cec_adapter *adap, unsigned short StatusReg)
 			status = -EAGAIN;
 			dev_dbg(dev, "Transmit not acknowledged (NACK)");
 		} else {
-			cec_transmit_done(adap, CEC_TX_STATUS_ERROR, 0, 0, 0, 1);
+			cec_transmit_done(adap, CEC_TX_STATUS_ERROR, 0, 0, 0,
+					  1);
 			status = -EIO;
 			dev_warn(dev, "Transmit failed (ERROR)");
 		}
@@ -435,9 +439,9 @@ static int secocec_tx_done(struct cec_adapter *adap, unsigned short StatusReg)
 
 	/* Reset status reg */
 	StatusReg = CEC_STATUS_TX_ERROR_MASK | CEC_STATUS_MSG_SENT_MASK |
-		CEC_STATUS_TX_NACK_ERROR | CEC_STATUS_TX_LINE_ERROR ;
+	    CEC_STATUS_TX_NACK_ERROR | CEC_STATUS_TX_LINE_ERROR;
 	smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_STATUS,
-			   StatusReg, SMBUS_WRITE, &result);
+		  StatusReg, SMBUS_WRITE, &result);
 
 	return status;
 }
@@ -446,15 +450,15 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short StatusReg)
 {
 	struct secocec_data *cec = adap->priv;
 	struct device *dev = cec->dev;
-	struct cec_msg msg = {};
+	struct cec_msg msg = { };
 	u8 i;
 	u8 payload_len, payload_id_len = 0;
-	u8 * payload_msg;
+	u8 *payload_msg;
 
 	int status;
 	unsigned short result, ReadReg = 0;
 
-	if ( StatusReg & CEC_STATUS_RX_ERROR_MASK ) {
+	if (StatusReg & CEC_STATUS_RX_ERROR_MASK) {
 		dev_warn(dev, "Message received with errors. Discarding");
 		status = -EIO;
 		goto rxerr;
@@ -479,13 +483,12 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short StatusReg)
 
 	/* Read logical address */
 	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
-			   CEC_READ_BYTE0, 0, SMBUS_READ,
-			   &ReadReg);
+			   CEC_READ_BYTE0, 0, SMBUS_READ, &ReadReg);
 	if (status != 0)
 		goto err;
 
 	/* device stores source LA and destination */
-	msg.msg[0] = ReadReg ;
+	msg.msg[0] = ReadReg;
 
 	/* Read operation ID if present */
 	if (payload_id_len > 0) {
@@ -504,7 +507,7 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short StatusReg)
 		payload_msg = &msg.msg[2];
 
 		/* device stores 2 bytes in every 16bit register */
-		for (i = 0 ; i < payload_len / 2 + payload_len % 2; i++){
+		for (i = 0; i < payload_len / 2 + payload_len % 2; i++) {
 			status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
 					   CEC_READ_DATA_00 + i, 0, SMBUS_READ,
 					   &ReadReg);
@@ -512,16 +515,15 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short StatusReg)
 				goto err;
 
 			/* low byte, skipping header */
-			payload_msg[ (i<<1) ] = ReadReg & 0x00FF ;
+			payload_msg[(i << 1)] = ReadReg & 0x00FF;
 
 			/* hi byte */
-			payload_msg[ (i<<1)+1 ] = ( ReadReg & 0xFF00 ) >> 8 ;
+			payload_msg[(i << 1) + 1] = (ReadReg & 0xFF00) >> 8;
 		}
 	}
 
-        for (i = 0; i < msg.len; i++) {
+	for (i = 0; i < msg.len; i++)
 		pr_debug("\t byte %d : 0x%02x\n", i, msg.msg[i]);
-        }
 
 	cec_received_msg(cec->cec_adap, &msg);
 
@@ -540,7 +542,7 @@ rxerr:
 	/* Reset error reg */
 	StatusReg = CEC_STATUS_MSG_RECEIVED_MASK | CEC_STATUS_RX_ERROR_MASK;
 	smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_STATUS,
-			   StatusReg, SMBUS_WRITE, &result);
+		  StatusReg, SMBUS_WRITE, &result);
 
 err:
 	dev_err(dev, "Receive message failed (%d)", status);
@@ -550,13 +552,13 @@ err:
 struct cec_adap_ops secocec_cec_adap_ops = {
 	/* Low-level callbacks */
 	.adap_enable = secocec_adap_enable,
-//	.adap_monitor_all_enable = secocec_adap_monitor_all_enable,
+//      .adap_monitor_all_enable = secocec_adap_monitor_all_enable,
 	.adap_log_addr = secocec_adap_log_addr,
 	.adap_transmit = secocec_adap_transmit,
-//	.adap_status = secocec_adap_status,
+//      .adap_status = secocec_adap_status,
 
 	/* High-level callbacks */
-//	.received = secocec_received,
+//      .received = secocec_received,
 };
 
 static irqreturn_t secocec_irq_handler(int irq, void *priv)
@@ -574,7 +576,7 @@ static irqreturn_t secocec_irq_handler(int irq, void *priv)
 	if (status != 0)
 		goto err;
 
-	if (ReadReg & STATUS_REGISTER_1_CEC){
+	if (ReadReg & STATUS_REGISTER_1_CEC) {
 		dev_dbg(dev, "+++++ CEC Interrupt Catched");
 
 		/* Read CEC status register */
@@ -589,15 +591,16 @@ static irqreturn_t secocec_irq_handler(int irq, void *priv)
 		if (StatusReg & CEC_STATUS_MSG_SENT_MASK)
 			secocec_tx_done(cec->cec_adap, StatusReg);
 
-		if ( (~StatusReg & CEC_STATUS_MSG_SENT_MASK) &&
-		     (~StatusReg & CEC_STATUS_MSG_RECEIVED_MASK) )
-			dev_warn(dev, "Message not received or sent, but interrupt fired \\_\"._/");
+		if ((~StatusReg & CEC_STATUS_MSG_SENT_MASK) &&
+		    (~StatusReg & CEC_STATUS_MSG_RECEIVED_MASK))
+			dev_warn(dev,
+				 "Message not received or sent, but interrupt fired \\_\"._/");
 
 		reg = STATUS_REGISTER_1_CEC;
 
 	}
 
-	if (ReadReg & STATUS_REGISTER_1_IRDA_RC5){
+	if (ReadReg & STATUS_REGISTER_1_IRDA_RC5) {
 		dev_dbg(dev, "IRDA RC5 Interrupt Catched");
 		reg |= STATUS_REGISTER_1_IRDA_RC5;
 		//TODO IRDA RX
@@ -647,19 +650,18 @@ static int secocec_acpi_probe(struct secocec_data *sdev)
 	}
 
 	ret = gpiod_to_irq(gpio);
-	if (ret < 0) {
+	if (ret < 0)
 		dev_err(dev, "GPIO is not binded to IRQ");
-	} else {
+	else
 		irq = ret;
-	}
 
-	dev_dbg(dev,"irq-gpio is binded to IRQ %d", irq);
+	dev_dbg(dev, "irq-gpio is binded to IRQ %d", irq);
 
-	if (irq != acpi_dev_gpio_irq_get(ACPI_COMPANION(dev), 0) ){
+	if (irq != acpi_dev_gpio_irq_get(ACPI_COMPANION(dev), 0)) {
 		dev_warn(dev, "IRQ %d is not GPIO %d (%d), available %d\n",
 			 irq, desc_to_gpio(gpio),
 			 acpi_dev_gpio_irq_get(ACPI_COMPANION(dev), 0),
-			 platform_irq_count(pdev)); 
+			 platform_irq_count(pdev));
 	}
 
 	sdev->irq = irq;
@@ -676,17 +678,16 @@ static int secocec_noacpi_probe(struct secocec_data *sdev)
 	int ret;
 
 	ret = devm_gpio_request_one(dev, gpio_irq, GPIOF_IN, "irq");
-	if (ret){
-		dev_err(dev, "cannot request gpio %d\n",
-			 gpio_irq);
+	if (ret) {
+		dev_err(dev, "cannot request gpio %d\n", gpio_irq);
 		return ret;
 	}
 	dev_dbg(dev, "requested gpio %d", gpio_irq);
 
 	irq = gpio_to_irq(gpio_irq);
-	if (irq <= 0){
+	if (irq <= 0) {
 		dev_err(dev, "IRQ associated to gpio %d is not valid (%d)\n",
-			 gpio_irq, irq);
+			gpio_irq, irq);
 		return irq;
 	}
 	dev_dbg(dev, "assigned IRQ %d", irq);
@@ -704,11 +705,10 @@ static int secocec_probe(struct platform_device *pdev)
 	int ret;
 	u8 opts;
 
-	if (has_acpi_companion(dev)){
+	if (has_acpi_companion(dev)) {
 		dev_dbg(dev, "ACPI companion found");
 		ret = secocec_acpi_probe(secocec);
-	}
-	else {
+	} else {
 		dev_dbg(dev, "Cannot find any ACPI companion");
 		ret = secocec_noacpi_probe(secocec);
 	}
@@ -731,15 +731,13 @@ static int secocec_probe(struct platform_device *pdev)
 					secocec_irq_handler_quick,
 					secocec_irq_handler,
 					IRQF_TRIGGER_RISING | IRQF_ONESHOT,
-					dev_name(&pdev->dev),
-					secocec);
+					dev_name(&pdev->dev), secocec);
 
 	if (ret < 0) {
 		dev_err(dev, "Cannot request IRQ %d", secocec->irq);
 		ret = -EIO;
 		goto err;
 	}
-
 	//allocate cec
 	opts = CEC_CAP_TRANSMIT | CEC_CAP_PHYS_ADDR |
 	    CEC_CAP_LOG_ADDRS | CEC_CAP_PASSTHROUGH | CEC_CAP_RC;
@@ -790,6 +788,7 @@ static const struct acpi_device_id secocec_acpi_match[] = {
 	{"CEC00001", 0},
 	{},
 };
+
 MODULE_DEVICE_TABLE(acpi, secocec_acpi_match);
 #endif
 
@@ -801,6 +800,7 @@ static struct platform_driver secocec_driver = {
 	.probe = secocec_probe,
 	.remove = secocec_remove,
 };
+
 module_platform_driver(secocec_driver);
 
 MODULE_DESCRIPTION("SECO CEC X86 Driver");
