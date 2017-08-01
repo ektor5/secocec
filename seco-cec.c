@@ -53,7 +53,7 @@
 
 
 // --------------------------------------------------------
-// ------------ SMBus definitons for Brasswell ------------
+// ------------ SMBus definitons for Braswell ------------
 // --------------------------------------------------------
 #define BRA_DONE_STATUS			(1<<7)
 #define	BRA_INUSE_STS			(1<<6)
@@ -80,6 +80,14 @@
 
 /* ---------------------------------------------------------------- */
 
+#define BRA_SMB_BASE_ADDR  0x2040
+#define HSTS               BRA_SMB_BASE_ADDR  +  0
+#define HCNT               BRA_SMB_BASE_ADDR  +  2
+#define HCMD               BRA_SMB_BASE_ADDR  +  3
+#define XMIT_SLVA          BRA_SMB_BASE_ADDR  +  4
+#define HDAT0              BRA_SMB_BASE_ADDR  +  5
+#define HDAT1              BRA_SMB_BASE_ADDR  +  6
+
 struct secocec_data {
 	struct device *dev;
 	struct platform_device *pdev;
@@ -104,45 +112,17 @@ static struct secocec_data *secocec_data_init(struct platform_device *pdev)
 	return drvdata;
 }
 
-static int smbWordOp(
-		     short DataFormat, 
+static int smbWordOp(short DataFormat, 
 		     unsigned short slaveAddr, 
 		     unsigned char cmd, 
 		     unsigned short data, 
 		     unsigned char operation, 
-		     unsigned short * result
-		    )
+		     unsigned short * result)
 {
 	unsigned int count;
 	short DataFormat_Local;
 	int ret;
 
-	unsigned long m_SMBus_Base_Address = 0x2040;
-	//unsigned long ulRet;
-
-	//PCI_SLOT_NUMBER slotNumber;
-
-	//slotNumber.u.bits.Reserved = 0;
-	//slotNumber.u.bits.DeviceNumber = 31;
-	//slotNumber.u.bits.FunctionNumber = 3;
-
-	//ulRet = HalGetBusDataByOffset(
-	//	PCIConfiguration, 
-	//	0, 
-	//	slotNumber.u.AsULONG, 
-	//	&m_SMBus_Base_Address, 
-	//	0x20, 
-	//	sizeof(unsigned short));
-
-	//m_SMBus_Base_Address = m_SMBus_Base_Address & 0xFFFFFFE0;
-
-	unsigned short HSTS = (unsigned short)m_SMBus_Base_Address + 0;
-	unsigned short HCNT = (unsigned short)m_SMBus_Base_Address + 2;
-	unsigned short HCMD = (unsigned short)m_SMBus_Base_Address + 3;
-	unsigned short XMIT_SLVA = (unsigned short)m_SMBus_Base_Address + 4;
-	unsigned short HDAT0 = (unsigned short)m_SMBus_Base_Address + 5;
-	unsigned short HDAT1 = (unsigned short)m_SMBus_Base_Address + 6;
-	//unsigned short BLOCK_DB	= m_SMBus_Base_Address+7;
 
 	switch (DataFormat)
 	{
@@ -160,33 +140,30 @@ static int smbWordOp(
 		return 1;
 	}
 
-	if(!request_muxed_region(m_SMBus_Base_Address, 7, "CEC00001"))
+	if(!request_muxed_region(BRA_SMB_BASE_ADDR, 7, "CEC00001"))
 	{
-		pr_debug("request_region m_SMBus_Base_Address fail\n");
+		pr_debug("request_region BRA_SMB_BASE_ADDR fail\n");
 		release_region(0xEB, 1);
 		return 2;
 	}
 
 	for(count=0; (count <= SMBTIMEOUT)&&(inb(HSTS)&BRA_INUSE_STS); ++count);
 
-	if (count > SMBTIMEOUT)
-	{
+	if (count > SMBTIMEOUT){
 		pr_debug("smbWordOp SMBTIMEOUT\n");
 		outb(0xFF, HSTS);
 		release_region(0xEB, 1);
 		pr_debug("smbWordOp RELEASE 0xEB\n");
-		release_region(m_SMBus_Base_Address, 7);
+		release_region(BRA_SMB_BASE_ADDR, 7);
 		pr_debug("smbWordOp RELEASE Base Addr\n");
 		return 3;
 	}
 
-	//outb(~BRA_INUSE_STS, HSTS);
 	outb(0x00, HCNT);
 	outb((unsigned char)(slaveAddr & 0xFE) | operation, XMIT_SLVA);
 	outb(cmd, HCMD);
-	inb(HCNT); // per azzeramento contatori su eventuale block read
-	if (operation == SMBUS_WRITE)
-	{
+	inb(HCNT);
+	if (operation == SMBUS_WRITE){
 		outb((unsigned char)data, HDAT0);
 		outb((unsigned char)(data >> 8), HDAT1);
 		pr_debug("smbWordOp WRITE (0x%02x - count %05d): 0x%04x\n", cmd, count, data);
@@ -195,45 +172,40 @@ static int smbWordOp(
 	outb(BRA_START + DataFormat_Local, HCNT);
 
 
-	for(count = 0; (count <= SMBTIMEOUT) && ((inb(HSTS)&BRA_HOST_BUSY)); count++)
-	{
+	for(count = 0; (count <= SMBTIMEOUT) && ((inb(HSTS)&BRA_HOST_BUSY)); count++){
 		outb(0x00, 0xEB);
 		outb(0x01, 0xEB);
 	}
 
-	if (count > SMBTIMEOUT)
-	{
+	if (count > SMBTIMEOUT){
 		outb(0xFF, HSTS);
 		pr_debug("smbWordOp SMBTIMEOUT_1\n");
-		release_region(m_SMBus_Base_Address, 7);
+		release_region(BRA_SMB_BASE_ADDR, 7);
 		release_region(0xEB, 1);
 		return 4;
 	}
 
 	ret = inb(HSTS);
-	if (ret & (BRA_HSTS_ERR_MASK))
-	{
+	if (ret & (BRA_HSTS_ERR_MASK)){
 		outb(0xFF, HSTS);
 		pr_debug("smbWordOp HSTS(0x%02X): 0x%X\n", cmd, ret);
-		release_region(m_SMBus_Base_Address, 7);
+		release_region(BRA_SMB_BASE_ADDR, 7);
 		release_region(0xEB, 1);
 		return 5;
 	}
 
-	if (operation == SMBUS_READ)
-	{
+	if (operation == SMBUS_READ){
 		*result = ((inb(HDAT0) & 0xFF) + ((inb(HDAT1) & 0xFF) << 8));
 		pr_debug("smbWordOp READ (0x%02x - count %05d): 0x%04x\n", cmd, count, *result);
 	}
 
 	outb(0xFF, HSTS);
 
-	release_region(m_SMBus_Base_Address, 7);
+	release_region(BRA_SMB_BASE_ADDR, 7);
 	release_region(0xEB, 1);
 	return 0;
 }
 
-//TODO cec implementation
 static int secocec_adap_enable(struct cec_adapter *adap, bool enable)
 {
 	struct secocec_data *cec = adap->priv;
@@ -729,39 +701,8 @@ static int secocec_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct secocec_data *secocec = secocec_data_init(pdev);
-	// u16 rev;
 	int ret;
 	u8 opts;
-
-	/* Check if the adapter supports the needed features */
-	/*
-	 *if (!i2c_check_functionality(pdev->adapter, I2C_FUNC_SMBUS_BYTE_DATA)) {
-	 *        ret = -EIO;
-	 *        goto err;
-	 *}
-	 */
-
-	/* TODO i2c access to secocec? */
-	/*
-	 *rev = seco_smbus_read_byte_data_check(client, 0xea, false) << 8 |
-	 *    seco_smbus_read_byte_data_check(client, 0xeb, false);
-	 *if (rev != 0x2012) {
-	 *        dev_dbg(dev, "got rev=0x%04x on first read attempt\n", rev);
-	 *        rev =
-	 *            seco_smbus_read_byte_data_check(client, 0xea,
-	 *                                            false) << 8 |
-	 *            seco_smbus_read_byte_data_check(client, 0xeb, false);
-	 *}
-	 *if (rev != 0x2012) {
-	 *        dev_err(dev, "not an secocec on address 0x%x (rev=0x%04x)\n",
-	 *                client->addr, rev);
-	 *        ret = -ENODEV;
-	 *        goto err;
-	 *}
-	 */
-
-	//request GPIO IRQ via acpi
-	//TODO check s is ok
 
 	if (has_acpi_companion(dev)){
 		dev_dbg(dev, "ACPI companion found");
@@ -778,10 +719,6 @@ static int secocec_probe(struct platform_device *pdev)
 		goto err;
 	}
 
-
-	if (!ACPI_HANDLE(dev))
-		dev_dbg(dev, "Cannot find any ACPI handle");
-
 	if (secocec->irq <= 0) {
 		dev_err(dev, "Cannot find irq (%d)", secocec->irq);
 		ret = -ENODEV;
@@ -790,17 +727,12 @@ static int secocec_probe(struct platform_device *pdev)
 	dev_dbg(dev, "IRQ detected at %d", secocec->irq);
 
 	ret = devm_request_threaded_irq(dev,
-			       // The interrupt number requested
-			       secocec->irq,
-			       // The pointer to the handler function below
-			       secocec_irq_handler_quick,
-			       secocec_irq_handler,
-			       // Use the custom kernel param to set interrupt type
-			       IRQF_TRIGGER_RISING | IRQF_ONESHOT,
-			       // Used in /proc/interrupts to identify the owner
-			       dev_name(&pdev->dev),
-			       // The *dev_id for shared interrupt lines
-			       secocec);
+					secocec->irq,
+					secocec_irq_handler_quick,
+					secocec_irq_handler,
+					IRQF_TRIGGER_RISING | IRQF_ONESHOT,
+					dev_name(&pdev->dev),
+					secocec);
 
 	if (ret < 0) {
 		dev_err(dev, "Cannot request IRQ %d", secocec->irq);
@@ -816,6 +748,7 @@ static int secocec_probe(struct platform_device *pdev)
 						 secocec,
 						 dev_name(dev),
 						 opts, SECOCEC_MAX_ADDRS);
+
 	ret = PTR_ERR_OR_ZERO(secocec->cec_adap);
 	if (ret)
 		goto err;
