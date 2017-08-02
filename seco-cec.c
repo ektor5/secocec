@@ -111,27 +111,33 @@ static struct secocec_data *secocec_data_init(struct platform_device *pdev)
 	return drvdata;
 }
 
-static int smbWordOp(short DataFormat,
-		     unsigned short slaveAddr,
-		     unsigned char cmd,
-		     unsigned short data,
-		     unsigned char operation, unsigned short *result)
+#define smb_wr16(cmd, data, res) smb_word_op(CMD_WORD_DATA, MICRO_ADDRESS, \
+					     cmd, data, SMBUS_WRITE, res)
+#define smb_rd16(cmd, res) smb_word_op(CMD_WORD_DATA, MICRO_ADDRESS, cmd, 0, \
+				       SMBUS_READ, res)
+
+static int smb_word_op(short data_format,
+		       unsigned short slave_addr,
+		       unsigned char cmd,
+		       unsigned short data,
+		       unsigned char operation, unsigned short *result)
 {
 	unsigned int count;
-	short DataFormat_Local;
+	short _data_format;
 	int ret;
 
-	switch (DataFormat) {
+	switch (data_format) {
 	case CMD_BYTE_DATA:
-		DataFormat_Local = BRA_SMB_CMD_BYTE_DATA;
+		_data_format = BRA_SMB_CMD_BYTE_DATA;
 		break;
 	case CMD_WORD_DATA:
-		DataFormat_Local = BRA_SMB_CMD_WORD_DATA;
+		_data_format = BRA_SMB_CMD_WORD_DATA;
 		break;
 	default:
 		return 1;
 	}
 
+	/* request smbus regions */
 	if (!request_muxed_region(0xEB, 1, "CEC00001")) {
 		pr_debug("request_region 0xEB fail\n");
 		return 1;
@@ -143,33 +149,31 @@ static int smbWordOp(short DataFormat,
 		return 2;
 	}
 
+	/* active wait until ready */
 	for (count = 0; (count <= SMBTIMEOUT) && (inb(HSTS) & BRA_INUSE_STS);
-	     ++count){
+	     ++count) {
 		nop();
 	}
 
 	if (count > SMBTIMEOUT) {
-		pr_debug("smbWordOp SMBTIMEOUT\n");
+		pr_debug("smb_word_op SMBTIMEOUT\n");
 		outb(0xFF, HSTS);
-		release_region(0xEB, 1);
-		pr_debug("smbWordOp RELEASE 0xEB\n");
-		release_region(BRA_SMB_BASE_ADDR, 7);
-		pr_debug("smbWordOp RELEASE Base Addr\n");
 		return 3;
 	}
 
 	outb(0x00, HCNT);
-	outb((unsigned char)(slaveAddr & 0xFE) | operation, XMIT_SLVA);
+	outb((unsigned char)(slave_addr & 0xFE) | operation, XMIT_SLVA);
 	outb(cmd, HCMD);
 	inb(HCNT);
+
 	if (operation == SMBUS_WRITE) {
 		outb((unsigned char)data, HDAT0);
 		outb((unsigned char)(data >> 8), HDAT1);
-		pr_debug("smbWordOp WRITE (0x%02x - count %05d): 0x%04x\n", cmd,
-			 count, data);
+		pr_debug("smb_word_op WRITE (0x%02x - count %05d): 0x%04x\n",
+			 cmd, count, data);
 	}
 
-	outb(BRA_START + DataFormat_Local, HCNT);
+	outb(BRA_START + _data_format, HCNT);
 
 	for (count = 0; (count <= SMBTIMEOUT) && ((inb(HSTS) & BRA_HOST_BUSY));
 	     count++) {
@@ -179,7 +183,7 @@ static int smbWordOp(short DataFormat,
 
 	if (count > SMBTIMEOUT) {
 		outb(0xFF, HSTS);
-		pr_debug("smbWordOp SMBTIMEOUT_1\n");
+		pr_debug("smb_word_op SMBTIMEOUT_1\n");
 		release_region(BRA_SMB_BASE_ADDR, 7);
 		release_region(0xEB, 1);
 		return 4;
@@ -188,7 +192,7 @@ static int smbWordOp(short DataFormat,
 	ret = inb(HSTS);
 	if (ret & (BRA_HSTS_ERR_MASK)) {
 		outb(0xFF, HSTS);
-		pr_debug("smbWordOp HSTS(0x%02X): 0x%X\n", cmd, ret);
+		pr_debug("smb_word_op HSTS(0x%02X): 0x%X\n", cmd, ret);
 		release_region(BRA_SMB_BASE_ADDR, 7);
 		release_region(0xEB, 1);
 		return 5;
@@ -196,8 +200,8 @@ static int smbWordOp(short DataFormat,
 
 	if (operation == SMBUS_READ) {
 		*result = ((inb(HDAT0) & 0xFF) + ((inb(HDAT1) & 0xFF) << 8));
-		pr_debug("smbWordOp READ (0x%02x - count %05d): 0x%04x\n", cmd,
-			 count, *result);
+		pr_debug("smb_word_op READ (0x%02x - count %05d): 0x%04x\n",
+			 cmd, count, *result);
 	}
 
 	outb(0xFF, HSTS);
@@ -216,29 +220,21 @@ static int secocec_adap_enable(struct cec_adapter *adap, bool enable)
 
 	if (enable) {
 		/* Clear the status register */
-		status =
-		    smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, STATUS_REGISTER_1,
-			      0, SMBUS_READ, &ReadReg);
+		status = smb_rd16(STATUS_REGISTER_1, &ReadReg);
 		if (status != 0)
 			goto err;
 
-		status =
-		    smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, STATUS_REGISTER_1,
-			      ReadReg, SMBUS_WRITE, &result);
+		status = smb_wr16(STATUS_REGISTER_1, ReadReg, &result);
 		if (status != 0)
 			goto err;
 
 		/* Enable the interrupts */
-		status =
-		    smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, ENABLE_REGISTER_1,
-			      0, SMBUS_READ, &ReadReg);
+		status = smb_rd16(ENABLE_REGISTER_1, &ReadReg);
 		if (status != 0)
 			goto err;
 
-		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
-				   ENABLE_REGISTER_1,
-				   ReadReg | ENABLE_REGISTER_1_CEC,
-				   SMBUS_WRITE, &result);
+		status = smb_wr16(ENABLE_REGISTER_1,
+				  ReadReg | ENABLE_REGISTER_1_CEC, &result);
 		if (status != 0)
 			goto err;
 
@@ -246,30 +242,22 @@ static int secocec_adap_enable(struct cec_adapter *adap, bool enable)
 
 	} else {
 		/* Clear the status register */
-		status =
-		    smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, STATUS_REGISTER_1,
-			      0, SMBUS_READ, &ReadReg);
+		status = smb_rd16(STATUS_REGISTER_1, &ReadReg);
 		if (status != 0)
 			goto err;
 
-		status =
-		    smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, STATUS_REGISTER_1,
-			      ReadReg, SMBUS_WRITE, &result);
+		status = smb_wr16(STATUS_REGISTER_1, ReadReg, &result);
 		if (status != 0)
 			goto err;
 
 		/* Disable the interrupts */
-		status =
-		    smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, ENABLE_REGISTER_1,
-			      0, SMBUS_READ, &ReadReg);
+		status = smb_rd16(ENABLE_REGISTER_1, &ReadReg);
 		if (status != 0)
 			goto err;
 
-		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
-				   ENABLE_REGISTER_1, ReadReg &
-				   ~ENABLE_REGISTER_1_CEC &
-				   ~ENABLE_REGISTER_1_IRDA_RC5, SMBUS_WRITE,
-				   &result);
+		status = smb_wr16(ENABLE_REGISTER_1, ReadReg &
+				  ~ENABLE_REGISTER_1_CEC &
+				  ~ENABLE_REGISTER_1_IRDA_RC5, &result);
 		if (status != 0)
 			goto err;
 
@@ -296,29 +284,25 @@ static int secocec_adap_log_addr(struct cec_adapter *adap, u8 logical_addr)
 		reg = 0xF;
 	}
 
-	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, ENABLE_REGISTER_1, 0,
-			   SMBUS_READ, &ReadReg);
+	status = smb_rd16(ENABLE_REGISTER_1, &ReadReg);
 	if (status != 0)
 		goto err;
 
 	dev_dbg(dev, "Set logical address: Disabling device");
-	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, ENABLE_REGISTER_1,
-			   ReadReg & ~ENABLE_REGISTER_1_CEC, SMBUS_WRITE,
-			   &result);
+	status = smb_wr16(ENABLE_REGISTER_1,
+			  ReadReg & ~ENABLE_REGISTER_1_CEC, &result);
 	if (status != 0)
 		goto err;
 
 	// Write logical address
 	dev_dbg(dev, "Set logical address to %02x", reg);
-	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_Device_LA,
-			   reg, SMBUS_WRITE, &result);
+	status = smb_wr16(CEC_Device_LA, reg, &result);
 	if (status != 0)
 		goto err;
 
 	dev_dbg(dev, "Set logical address: Re-enabling device");
-	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, ENABLE_REGISTER_1,
-			   ReadReg | ENABLE_REGISTER_1_CEC, SMBUS_WRITE,
-			   &result);
+	status = smb_wr16(ENABLE_REGISTER_1,
+			  ReadReg | ENABLE_REGISTER_1_CEC, &result);
 	if (status != 0)
 		goto err;
 
@@ -355,16 +339,13 @@ static int secocec_adap_transmit(struct cec_adapter *adap, u8 attempts,
 	payload_id_len = msg->len - 1;
 
 	// Send data length
-	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_WRITE_DATA_LENGTH,
-			   payload_id_len, SMBUS_WRITE, &result);
+	status = smb_wr16(CEC_WRITE_DATA_LENGTH, payload_id_len, &result);
 	if (status != 0)
 		goto err;
 
 	// Send Operation ID if present
 	if (payload_id_len > 0) {
-		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
-				   CEC_WRITE_OPERATION_ID, msg->msg[1],
-				   SMBUS_WRITE, &result);
+		status = smb_wr16(CEC_WRITE_OPERATION_ID, msg->msg[1], &result);
 		if (status != 0)
 			goto err;
 	}
@@ -383,17 +364,14 @@ static int secocec_adap_transmit(struct cec_adapter *adap, u8 attempts,
 			// lo
 			reg |= payload_msg[(i << 1)];
 
-			status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
-					   CEC_WRITE_DATA_00 + i, reg,
-					   SMBUS_WRITE, &result);
+			status = smb_wr16(CEC_WRITE_DATA_00 + i, reg, &result);
 			if (status != 0)
 				goto err;
 		}
 	}
 	// Send msg source/destination and fire msg
 	destination = msg->msg[0];
-	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_WRITE_BYTE0,
-			   destination, SMBUS_WRITE, &result);
+	status = smb_wr16(CEC_WRITE_BYTE0, destination, &result);
 	if (status != 0)
 		goto err;
 
@@ -440,8 +418,7 @@ static int secocec_tx_done(struct cec_adapter *adap, unsigned short StatusReg)
 	/* Reset status reg */
 	StatusReg = CEC_STATUS_TX_ERROR_MASK | CEC_STATUS_MSG_SENT_MASK |
 	    CEC_STATUS_TX_NACK_ERROR | CEC_STATUS_TX_LINE_ERROR;
-	smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_STATUS,
-		  StatusReg, SMBUS_WRITE, &result);
+	smb_wr16(CEC_STATUS, StatusReg, &result);
 
 	return status;
 }
@@ -465,8 +442,7 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short StatusReg)
 	}
 
 	/* Read message length */
-	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_READ_DATA_LENGTH,
-			   0, SMBUS_READ, &ReadReg);
+	status = smb_rd16(CEC_READ_DATA_LENGTH, &ReadReg);
 	if (status != 0)
 		goto err;
 
@@ -482,8 +458,7 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short StatusReg)
 	msg.len = payload_id_len + 1;
 
 	/* Read logical address */
-	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
-			   CEC_READ_BYTE0, 0, SMBUS_READ, &ReadReg);
+	status = smb_rd16(CEC_READ_BYTE0, &ReadReg);
 	if (status != 0)
 		goto err;
 
@@ -492,9 +467,7 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short StatusReg)
 
 	/* Read operation ID if present */
 	if (payload_id_len > 0) {
-		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
-				   CEC_READ_OPERATION_ID, 0, SMBUS_READ,
-				   &ReadReg);
+		status = smb_rd16(CEC_READ_OPERATION_ID, &ReadReg);
 		if (status != 0)
 			goto err;
 
@@ -508,9 +481,7 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short StatusReg)
 
 		/* device stores 2 bytes in every 16bit register */
 		for (i = 0; i < payload_len / 2 + payload_len % 2; i++) {
-			status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS,
-					   CEC_READ_DATA_00 + i, 0, SMBUS_READ,
-					   &ReadReg);
+			status = smb_rd16(CEC_READ_DATA_00 + i, &ReadReg);
 			if (status != 0)
 				goto err;
 
@@ -529,8 +500,7 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short StatusReg)
 
 	/* Reset status reg */
 	StatusReg = CEC_STATUS_MSG_RECEIVED_MASK;
-	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_STATUS,
-			   StatusReg, SMBUS_WRITE, &result);
+	status = smb_wr16(CEC_STATUS, StatusReg, &result);
 	if (status != 0)
 		goto err;
 
@@ -541,8 +511,7 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short StatusReg)
 rxerr:
 	/* Reset error reg */
 	StatusReg = CEC_STATUS_MSG_RECEIVED_MASK | CEC_STATUS_RX_ERROR_MASK;
-	smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_STATUS,
-		  StatusReg, SMBUS_WRITE, &result);
+	smb_wr16(CEC_STATUS, StatusReg, &result);
 
 err:
 	dev_err(dev, "Receive message failed (%d)", status);
@@ -571,8 +540,7 @@ static irqreturn_t secocec_irq_handler(int irq, void *priv)
 	unsigned short result, ReadReg, StatusReg, reg = 0;
 
 	/*  Read status register */
-	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, STATUS_REGISTER_1, 0,
-			   SMBUS_READ, &ReadReg);
+	status = smb_rd16(STATUS_REGISTER_1, &ReadReg);
 	if (status != 0)
 		goto err;
 
@@ -580,8 +548,7 @@ static irqreturn_t secocec_irq_handler(int irq, void *priv)
 		dev_dbg(dev, "+++++ CEC Interrupt Catched");
 
 		/* Read CEC status register */
-		status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, CEC_STATUS, 0,
-				   SMBUS_READ, &StatusReg);
+		status = smb_rd16(CEC_STATUS, &StatusReg);
 		if (status != 0)
 			goto err;
 
@@ -607,8 +574,7 @@ static irqreturn_t secocec_irq_handler(int irq, void *priv)
 	}
 
 	/*  Reset status register */
-	status = smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, STATUS_REGISTER_1,
-			   reg, SMBUS_WRITE, &result);
+	status = smb_wr16(STATUS_REGISTER_1, reg, &result);
 	if (status != 0)
 		goto err;
 
@@ -621,8 +587,7 @@ err:
 
 	/*  Reset status register */
 	reg = STATUS_REGISTER_1_CEC | STATUS_REGISTER_1_IRDA_RC5;
-	smbWordOp(CMD_WORD_DATA, MICRO_ADDRESS, STATUS_REGISTER_1,
-		  reg, SMBUS_WRITE, &result);
+	smb_wr16(STATUS_REGISTER_1, reg, &result);
 
 	return IRQ_HANDLED;
 }
