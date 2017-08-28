@@ -532,34 +532,33 @@ struct cec_adap_ops secocec_cec_adap_ops = {
 
 static irqreturn_t secocec_irq_handler(int irq, void *priv)
 {
-	//TODO irq handler
 	struct secocec_data *cec = priv;
 	struct device *dev = cec->dev;
 
 	int status;
-	unsigned short result, ReadReg, StatusReg, reg = 0;
+	unsigned short result, status_reg, cec_reg, reg = 0;
 
 	/*  Read status register */
-	status = smb_rd16(STATUS_REGISTER_1, &ReadReg);
+	status = smb_rd16(STATUS_REGISTER_1, &status_reg);
 	if (status != 0)
 		goto err;
 
-	if (ReadReg & STATUS_REGISTER_1_CEC) {
+	if (status_reg & STATUS_REGISTER_1_CEC) {
 		dev_dbg(dev, "+++++ CEC Interrupt Catched");
 
 		/* Read CEC status register */
-		status = smb_rd16(CEC_STATUS, &StatusReg);
+		status = smb_rd16(CEC_STATUS, &cec_reg);
 		if (status != 0)
 			goto err;
 
-		if (StatusReg & CEC_STATUS_MSG_RECEIVED_MASK)
-			secocec_rx_done(cec->cec_adap, StatusReg);
+		if (cec_reg & CEC_STATUS_MSG_RECEIVED_MASK)
+			secocec_rx_done(cec->cec_adap, cec_reg);
 
-		if (StatusReg & CEC_STATUS_MSG_SENT_MASK)
-			secocec_tx_done(cec->cec_adap, StatusReg);
+		if (cec_reg & CEC_STATUS_MSG_SENT_MASK)
+			secocec_tx_done(cec->cec_adap, cec_reg);
 
-		if ((~StatusReg & CEC_STATUS_MSG_SENT_MASK) &&
-		    (~StatusReg & CEC_STATUS_MSG_RECEIVED_MASK))
+		if ((~cec_reg & CEC_STATUS_MSG_SENT_MASK) &&
+		    (~cec_reg & CEC_STATUS_MSG_RECEIVED_MASK))
 			dev_warn(dev,
 				 "Message not received or sent, but interrupt fired \\_\"._/");
 
@@ -567,7 +566,7 @@ static irqreturn_t secocec_irq_handler(int irq, void *priv)
 
 	}
 
-	if (ReadReg & STATUS_REGISTER_1_IRDA_RC5) {
+	if (status_reg & STATUS_REGISTER_1_IRDA_RC5) {
 		dev_dbg(dev, "IRDA RC5 Interrupt Catched");
 		reg |= STATUS_REGISTER_1_IRDA_RC5;
 		//TODO IRDA RX
