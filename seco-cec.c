@@ -433,7 +433,7 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short StatusReg)
 	u8 *payload_msg;
 
 	int status;
-	unsigned short result, ReadReg = 0;
+	unsigned short result, reg = 0;
 
 	if (StatusReg & CEC_STATUS_RX_ERROR_MASK) {
 		dev_warn(dev, "Message received with errors. Discarding");
@@ -442,11 +442,11 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short StatusReg)
 	}
 
 	/* Read message length */
-	status = smb_rd16(CEC_READ_DATA_LENGTH, &ReadReg);
+	status = smb_rd16(CEC_READ_DATA_LENGTH, &reg);
 	if (status != 0)
 		goto err;
 
-	payload_id_len = ReadReg;
+	payload_id_len = reg;
 	dev_dbg(dev, "Incoming message (payload len %d):", payload_id_len);
 
 	if (payload_id_len > 11) {
@@ -458,20 +458,20 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short StatusReg)
 	msg.len = payload_id_len + 1;
 
 	/* Read logical address */
-	status = smb_rd16(CEC_READ_BYTE0, &ReadReg);
+	status = smb_rd16(CEC_READ_BYTE0, &reg);
 	if (status != 0)
 		goto err;
 
 	/* device stores source LA and destination */
-	msg.msg[0] = ReadReg;
+	msg.msg[0] = reg;
 
 	/* Read operation ID if present */
 	if (payload_id_len > 0) {
-		status = smb_rd16(CEC_READ_OPERATION_ID, &ReadReg);
+		status = smb_rd16(CEC_READ_OPERATION_ID, &reg);
 		if (status != 0)
 			goto err;
 
-		msg.msg[1] = ReadReg;
+		msg.msg[1] = reg;
 	}
 
 	/* Read data if present */
@@ -481,15 +481,15 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short StatusReg)
 
 		/* device stores 2 bytes in every 16bit register */
 		for (i = 0; i < payload_len / 2 + payload_len % 2; i++) {
-			status = smb_rd16(CEC_READ_DATA_00 + i, &ReadReg);
+			status = smb_rd16(CEC_READ_DATA_00 + i, &reg);
 			if (status != 0)
 				goto err;
 
 			/* low byte, skipping header */
-			payload_msg[(i << 1)] = ReadReg & 0x00FF;
+			payload_msg[(i << 1)] = reg & 0x00FF;
 
 			/* hi byte */
-			payload_msg[(i << 1) + 1] = (ReadReg & 0xFF00) >> 8;
+			payload_msg[(i << 1) + 1] = (reg & 0xFF00) >> 8;
 		}
 	}
 
