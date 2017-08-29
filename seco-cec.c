@@ -1,20 +1,18 @@
 /*
- * ======================================================================
  *
- *       Filename:  seco-cec.c
+ * CEC driver for SECO X86 Boards
  *
- *    Description:  CEC driver for SECO X86 Boards
+ * Author:  Ettore Chimenti <ek5.chimenti@gmail.com>
+ * Copyright (C) 2017, SECO Srl.
  *
- *        Version:  1.0
- *        Created:  04/03/2017 05:04:26 PM
- *       Revision:  none
- *       Compiler:  gcc
+ * This file is provided under a dual BSD/GPLv2 license.  When using or
+ * redistributing this file, you may do so under either license.
+ * 
+ * Released under the terms of 3-clause BSD License
+ * Released under the terms of GNU General Public License Version 2.0
  *
- *         Author:  Ettore Chimenti (ek5.chimenti@gmail.com),
- *   Organization:  SECO Srl.
- *
- * ======================================================================
  */
+
 #include <linux/io.h>
 #include <linux/ioport.h>
 #include <linux/mm.h>
@@ -769,4 +767,4 @@ module_platform_driver(secocec_driver);
 
 MODULE_DESCRIPTION("SECO CEC X86 Driver");
 MODULE_AUTHOR("Ettore Chimenti <ek5.chimenti@gmail.com>");
-MODULE_LICENSE("GPL");
+MODULE_LICENSE("Dual BSD/GPL");
