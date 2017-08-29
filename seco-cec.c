@@ -29,7 +29,7 @@
 #include <linux/slab.h>
 #include <linux/debugfs.h>
 
-#include "Stm32Microntroller.h"
+#include "seco-cec.h"
 
 // CEC Framework
 #include <media/cec.h>
@@ -591,10 +591,7 @@ err:
 
 static irqreturn_t secocec_irq_handler_quick(int irq, void *priv)
 {
-	//TODO irq handler
-
 	return IRQ_WAKE_THREAD;
-
 }
 
 static int secocec_acpi_probe(struct secocec_data *sdev)
@@ -700,6 +697,7 @@ static int secocec_probe(struct platform_device *pdev)
 		ret = -EIO;
 		goto err;
 	}
+
 	//allocate cec
 	opts = CEC_CAP_TRANSMIT | CEC_CAP_PHYS_ADDR |
 	    CEC_CAP_LOG_ADDRS | CEC_CAP_PASSTHROUGH | CEC_CAP_RC;
