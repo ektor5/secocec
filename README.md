@@ -57,8 +57,28 @@ apt):
 
 * `cec-ctl`: An application to control cec devices
 * `cec-compliance`: An application to verify remote CEC devices
-* `cec-follower`: An application to emulate CEC followers 
+* `cec-follower`: An application to emulate CEC followers
 
 Check the corresponding man pages for info.
 
 [v4l-utils]: https://git.linuxtv.org/v4l-utils.git/
+
+## Debug
+
+To compile the module with debug messages:
+
+``` bash
+make DEBUG=1
+```
+
+Feel free to open issues or mail me directly, make sure to include *dmesg*,
+*lsmod*, etc.. in the bug report.
+
+## Credits
+
+Author: Ettore Chimenti
+Thanks to: Hans Verkuil
+
+Copyright (C) 2017, Seco Srl
+Copyright (C) 2017, Aidilab
+

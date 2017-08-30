@@ -697,7 +697,6 @@ static int secocec_probe(struct platform_device *pdev)
 		ret = -EIO;
 		goto err;
 	}
-
 	//allocate cec
 	opts = CEC_CAP_TRANSMIT | CEC_CAP_PHYS_ADDR |
 	    CEC_CAP_LOG_ADDRS | CEC_CAP_PASSTHROUGH | CEC_CAP_RC;

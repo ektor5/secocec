@@ -1,6 +1,9 @@
-#ccflags-y+=-Wfatal-errors
-ccflags-y+=-DDEBUG
+ccflags-y+=-Wfatal-errors
 ccflags-y+=-fmax-errors=5
+
+ifdef DEBUG
+ccflags-y+=-DDEBUG
+endif
 
 obj-m += seco-cec.o
 
