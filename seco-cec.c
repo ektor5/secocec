@@ -122,7 +122,7 @@ static int smb_word_op(short data_format,
 {
 	unsigned int count;
 	short _data_format;
-	int ret;
+	int ret, status = 0;
 
 	switch (data_format) {
 	case CMD_BYTE_DATA:
@@ -138,13 +138,13 @@ static int smb_word_op(short data_format,
 	/* request smbus regions */
 	if (!request_muxed_region(0xEB, 1, "CEC00001")) {
 		pr_debug("request_region 0xEB fail\n");
-		return 1;
+		return -EIO;
 	}
 
 	if (!request_muxed_region(BRA_SMB_BASE_ADDR, 7, "CEC00001")) {
 		pr_debug("request_region BRA_SMB_BASE_ADDR fail\n");
 		release_region(0xEB, 1);
-		return 2;
+		return -EIO;
 	}
 
 	/* active wait until ready */
@@ -156,7 +156,8 @@ static int smb_word_op(short data_format,
 	if (count > SMBTIMEOUT) {
 		pr_debug("smb_word_op SMBTIMEOUT\n");
 		outb(0xFF, HSTS);
-		return 3;
+		status = -ETIME;
+		goto err;
 	}
 
 	outb(0x00, HCNT);
@@ -182,18 +183,16 @@ static int smb_word_op(short data_format,
 	if (count > SMBTIMEOUT) {
 		outb(0xFF, HSTS);
 		pr_debug("smb_word_op SMBTIMEOUT_1\n");
-		release_region(BRA_SMB_BASE_ADDR, 7);
-		release_region(0xEB, 1);
-		return 4;
+		status = -ETIME;
+		goto err;
 	}
 
 	ret = inb(HSTS);
 	if (ret & (BRA_HSTS_ERR_MASK)) {
 		outb(0xFF, HSTS);
 		pr_debug("smb_word_op HSTS(0x%02X): 0x%X\n", cmd, ret);
-		release_region(BRA_SMB_BASE_ADDR, 7);
-		release_region(0xEB, 1);
-		return 5;
+		status = -EIO;
+		goto err;
 	}
 
 	if (operation == SMBUS_READ) {
@@ -204,9 +203,11 @@ static int smb_word_op(short data_format,
 
 	outb(0xFF, HSTS);
 
+err:
 	release_region(BRA_SMB_BASE_ADDR, 7);
 	release_region(0xEB, 1);
-	return 0;
+
+	return status;
 }
 
 static int secocec_adap_enable(struct cec_adapter *adap, bool enable)
@@ -219,21 +220,21 @@ static int secocec_adap_enable(struct cec_adapter *adap, bool enable)
 	if (enable) {
 		/* Clear the status register */
 		status = smb_rd16(STATUS_REGISTER_1, &ReadReg);
-		if (status != 0)
+		if (status)
 			goto err;
 
 		status = smb_wr16(STATUS_REGISTER_1, ReadReg, &result);
-		if (status != 0)
+		if (status)
 			goto err;
 
 		/* Enable the interrupts */
 		status = smb_rd16(ENABLE_REGISTER_1, &ReadReg);
-		if (status != 0)
+		if (status)
 			goto err;
 
 		status = smb_wr16(ENABLE_REGISTER_1,
 				  ReadReg | ENABLE_REGISTER_1_CEC, &result);
-		if (status != 0)
+		if (status)
 			goto err;
 
 		dev_dbg(dev, "Device enabled");
@@ -241,22 +242,22 @@ static int secocec_adap_enable(struct cec_adapter *adap, bool enable)
 	} else {
 		/* Clear the status register */
 		status = smb_rd16(STATUS_REGISTER_1, &ReadReg);
-		if (status != 0)
+		if (status)
 			goto err;
 
 		status = smb_wr16(STATUS_REGISTER_1, ReadReg, &result);
-		if (status != 0)
+		if (status)
 			goto err;
 
 		/* Disable the interrupts */
 		status = smb_rd16(ENABLE_REGISTER_1, &ReadReg);
-		if (status != 0)
+		if (status)
 			goto err;
 
 		status = smb_wr16(ENABLE_REGISTER_1, ReadReg &
 				  ~ENABLE_REGISTER_1_CEC &
 				  ~ENABLE_REGISTER_1_IRDA_RC5, &result);
-		if (status != 0)
+		if (status)
 			goto err;
 
 		dev_dbg(dev, "Device disabled");
@@ -283,25 +284,25 @@ static int secocec_adap_log_addr(struct cec_adapter *adap, u8 logical_addr)
 	}
 
 	status = smb_rd16(ENABLE_REGISTER_1, &ReadReg);
-	if (status != 0)
+	if (status)
 		goto err;
 
 	dev_dbg(dev, "Set logical address: Disabling device");
 	status = smb_wr16(ENABLE_REGISTER_1,
 			  ReadReg & ~ENABLE_REGISTER_1_CEC, &result);
-	if (status != 0)
+	if (status)
 		goto err;
 
 	// Write logical address
 	dev_dbg(dev, "Set logical address to %02x", reg);
 	status = smb_wr16(CEC_Device_LA, reg, &result);
-	if (status != 0)
+	if (status)
 		goto err;
 
 	dev_dbg(dev, "Set logical address: Re-enabling device");
 	status = smb_wr16(ENABLE_REGISTER_1,
 			  ReadReg | ENABLE_REGISTER_1_CEC, &result);
-	if (status != 0)
+	if (status)
 		goto err;
 
 	return 0;
@@ -338,13 +339,13 @@ static int secocec_adap_transmit(struct cec_adapter *adap, u8 attempts,
 
 	// Send data length
 	status = smb_wr16(CEC_WRITE_DATA_LENGTH, payload_id_len, &result);
-	if (status != 0)
+	if (status)
 		goto err;
 
 	// Send Operation ID if present
 	if (payload_id_len > 0) {
 		status = smb_wr16(CEC_WRITE_OPERATION_ID, msg->msg[1], &result);
-		if (status != 0)
+		if (status)
 			goto err;
 	}
 	// Send data if present
@@ -363,14 +364,14 @@ static int secocec_adap_transmit(struct cec_adapter *adap, u8 attempts,
 			reg |= payload_msg[(i << 1)];
 
 			status = smb_wr16(CEC_WRITE_DATA_00 + i, reg, &result);
-			if (status != 0)
+			if (status)
 				goto err;
 		}
 	}
 	// Send msg source/destination and fire msg
 	destination = msg->msg[0];
 	status = smb_wr16(CEC_WRITE_BYTE0, destination, &result);
-	if (status != 0)
+	if (status)
 		goto err;
 
 	return 0;
@@ -385,7 +386,7 @@ static int secocec_tx_done(struct cec_adapter *adap, unsigned short StatusReg)
 	struct secocec_data *cec = adap->priv;
 	struct device *dev = cec->dev;
 
-	int status;
+	int status = 0;
 	unsigned short result = 0;
 
 	if (StatusReg & CEC_STATUS_TX_ERROR_MASK) {
@@ -410,7 +411,6 @@ static int secocec_tx_done(struct cec_adapter *adap, unsigned short StatusReg)
 
 		dev_dbg(dev, "Transmitted frame successfully");
 		cec_transmit_done(adap, CEC_TX_STATUS_OK, 0, 0, 0, 0);
-		status = 0;
 	}
 
 	/* Reset status reg */
@@ -441,7 +441,7 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short StatusReg)
 
 	/* Read message length */
 	status = smb_rd16(CEC_READ_DATA_LENGTH, &reg);
-	if (status != 0)
+	if (status)
 		goto err;
 
 	payload_id_len = reg;
@@ -457,7 +457,7 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short StatusReg)
 
 	/* Read logical address */
 	status = smb_rd16(CEC_READ_BYTE0, &reg);
-	if (status != 0)
+	if (status)
 		goto err;
 
 	/* device stores source LA and destination */
@@ -466,7 +466,7 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short StatusReg)
 	/* Read operation ID if present */
 	if (payload_id_len > 0) {
 		status = smb_rd16(CEC_READ_OPERATION_ID, &reg);
-		if (status != 0)
+		if (status)
 			goto err;
 
 		msg.msg[1] = reg;
@@ -480,7 +480,7 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short StatusReg)
 		/* device stores 2 bytes in every 16bit register */
 		for (i = 0; i < payload_len / 2 + payload_len % 2; i++) {
 			status = smb_rd16(CEC_READ_DATA_00 + i, &reg);
-			if (status != 0)
+			if (status)
 				goto err;
 
 			/* low byte, skipping header */
@@ -499,7 +499,7 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short StatusReg)
 	/* Reset status reg */
 	StatusReg = CEC_STATUS_MSG_RECEIVED_MASK;
 	status = smb_wr16(CEC_STATUS, StatusReg, &result);
-	if (status != 0)
+	if (status)
 		goto err;
 
 	dev_dbg(dev, "Message received successfully");
@@ -513,7 +513,7 @@ rxerr:
 
 err:
 	dev_err(dev, "Receive message failed (%d)", status);
-	return -EIO;
+	return status;
 }
 
 struct cec_adap_ops secocec_cec_adap_ops = {
@@ -538,7 +538,7 @@ static irqreturn_t secocec_irq_handler(int irq, void *priv)
 
 	/*  Read status register */
 	status = smb_rd16(STATUS_REGISTER_1, &status_reg);
-	if (status != 0)
+	if (status)
 		goto err;
 
 	if (status_reg & STATUS_REGISTER_1_CEC) {
@@ -546,7 +546,7 @@ static irqreturn_t secocec_irq_handler(int irq, void *priv)
 
 		/* Read CEC status register */
 		status = smb_rd16(CEC_STATUS, &cec_reg);
-		if (status != 0)
+		if (status)
 			goto err;
 
 		if (cec_reg & CEC_STATUS_MSG_RECEIVED_MASK)
@@ -572,7 +572,7 @@ static irqreturn_t secocec_irq_handler(int irq, void *priv)
 
 	/*  Reset status register */
 	status = smb_wr16(STATUS_REGISTER_1, reg, &result);
-	if (status != 0)
+	if (status)
 		goto err;
 
 	dev_dbg(dev, "----- CEC Interrupt Handled");
@@ -580,7 +580,7 @@ static irqreturn_t secocec_irq_handler(int irq, void *priv)
 	return IRQ_HANDLED;
 
 err:
-	dev_err(dev, "IRQ: Read/Write SMBus operation failed");
+	dev_err(dev, "IRQ: Read/Write SMBus operation failed (%d)", status);
 
 	/*  Reset status register */
 	reg = STATUS_REGISTER_1_CEC | STATUS_REGISTER_1_IRDA_RC5;
