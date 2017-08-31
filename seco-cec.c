@@ -19,7 +19,7 @@
 #include <linux/acpi.h>
 #include <linux/platform_device.h>
 
-// CEC Framework
+/* CEC Framework */
 #include <media/cec.h>
 
 #include "seco-cec.h"
@@ -85,7 +85,7 @@ static int smb_word_op(short data_format,
 		return 1;
 	}
 
-	/* request smbus regions */
+	/* Request SMBus regions */
 	if (!request_muxed_region(0xEB, 1, "CEC00001")) {
 		pr_debug("request_region 0xEB fail\n");
 		return -ENXIO;
@@ -97,7 +97,7 @@ static int smb_word_op(short data_format,
 		return -ENXIO;
 	}
 
-	/* active wait until ready */
+	/* Active wait until ready */
 	for (count = 0; (count <= SMBTIMEOUT) && (inb(HSTS) & BRA_INUSE_STS);
 	     ++count) {
 		nop();
@@ -243,7 +243,7 @@ static int secocec_adap_log_addr(struct cec_adapter *adap, u8 logical_addr)
 	if (status)
 		goto err;
 
-	// Write logical address
+	/* Write logical address */
 	dev_dbg(dev, "Set logical address to %02x", reg);
 	status = smb_wr16(CEC_DEVICE_LA, reg, &result);
 	if (status)
@@ -284,32 +284,32 @@ static int secocec_adap_transmit(struct cec_adapter *adap, u8 attempts,
 			 "Trying to send a message longer than 12 bytes, cutting");
 		msg->len = 12;
 	}
-	// Device msg len already accounts for header
+	/* Device msg len already accounts for header */
 	payload_id_len = msg->len - 1;
 
-	// Send data length
+	/* Send data length */
 	status = smb_wr16(CEC_WRITE_DATA_LENGTH, payload_id_len, &result);
 	if (status)
 		goto err;
 
-	// Send Operation ID if present
+	/* Send Operation ID if present */
 	if (payload_id_len > 0) {
 		status = smb_wr16(CEC_WRITE_OPERATION_ID, msg->msg[1], &result);
 		if (status)
 			goto err;
 	}
-	// Send data if present
+	/* Send data if present */
 	if (payload_id_len > 1) {
-		// Only data;
+		/* Only data; */
 		payload_len = msg->len - 2;
 		payload_msg = &msg->msg[2];
 
-		// Copy message into registers
+		/* Copy message into registers */
 		for (i = 0; i < payload_len / 2 + payload_len % 2; i++) {
-			// hi byte
+			/* hi byte */
 			reg = payload_msg[(i << 1) + 1] << 8;
 
-			// lo
+			/* lo byte */
 			reg |= payload_msg[(i << 1)];
 
 			status = smb_wr16(CEC_WRITE_DATA_00 + i, reg, &result);
@@ -317,7 +317,7 @@ static int secocec_adap_transmit(struct cec_adapter *adap, u8 attempts,
 				goto err;
 		}
 	}
-	// Send msg source/destination and fire msg
+	/* Send msg source/destination and fire msg */
 	destination = msg->msg[0];
 	status = smb_wr16(CEC_WRITE_BYTE0, destination, &result);
 	if (status)
@@ -610,7 +610,7 @@ static int secocec_probe(struct platform_device *pdev)
 		ret = -EIO;
 		goto err;
 	}
-	//allocate cec
+	/* Allocate CEC adapter */
 	opts = CEC_CAP_TRANSMIT | CEC_CAP_PHYS_ADDR |
 	    CEC_CAP_LOG_ADDRS | CEC_CAP_PASSTHROUGH | CEC_CAP_RC;
 
@@ -647,7 +647,6 @@ static int secocec_remove(struct platform_device *pdev)
 {
 	struct secocec_data *secocec = platform_get_drvdata(pdev);
 
-	//release cec
 	cec_unregister_adapter(secocec->cec_adap);
 
 	return 0;
