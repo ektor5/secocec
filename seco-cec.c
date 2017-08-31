@@ -26,8 +26,6 @@
 
 #define SECOCEC_MAX_ADDRS		1
 #define SECOCEC_DEV_NAME		"secocec"
-#define GPIO_I2C6_SCL			51
-#define GPIOCHIP_SOUTHWEST		456
 
 #define SMBUS_WRITE			0
 #define SMBUS_READ			1
@@ -571,33 +569,6 @@ static int secocec_acpi_probe(struct secocec_data *sdev)
 	return 0;
 }
 
-static int secocec_noacpi_probe(struct secocec_data *sdev)
-{
-	struct device *dev = sdev->dev;
-	int gpio_irq = GPIOCHIP_SOUTHWEST + GPIO_I2C6_SCL;
-	int irq;
-	int ret;
-
-	ret = devm_gpio_request_one(dev, gpio_irq, GPIOF_IN, "irq");
-	if (ret) {
-		dev_err(dev, "cannot request gpio %d\n", gpio_irq);
-		return ret;
-	}
-	dev_dbg(dev, "requested gpio %d", gpio_irq);
-
-	irq = gpio_to_irq(gpio_irq);
-	if (irq <= 0) {
-		dev_err(dev, "IRQ associated to gpio %d is not valid (%d)\n",
-			gpio_irq, irq);
-		return irq;
-	}
-	dev_dbg(dev, "assigned IRQ %d", irq);
-
-	sdev->irq = irq;
-
-	return 0;
-}
-
 static int secocec_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -610,7 +581,8 @@ static int secocec_probe(struct platform_device *pdev)
 		ret = secocec_acpi_probe(secocec);
 	} else {
 		dev_dbg(dev, "Cannot find any ACPI companion");
-		ret = secocec_noacpi_probe(secocec);
+		ret = -ENODEV;
+		goto err;
 	}
 
 	if (ret) {
@@ -633,7 +605,7 @@ static int secocec_probe(struct platform_device *pdev)
 					IRQF_TRIGGER_RISING | IRQF_ONESHOT,
 					dev_name(&pdev->dev), secocec);
 
-	if (ret < 0) {
+	if (ret) {
 		dev_err(dev, "Cannot request IRQ %d", secocec->irq);
 		ret = -EIO;
 		goto err;
@@ -664,7 +636,7 @@ static int secocec_probe(struct platform_device *pdev)
 err_delete_adapter:
 	cec_delete_adapter(secocec->cec_adap);
 err:
-	dev_err(dev, "%s device probe failed.\n", dev_name(dev));
+	dev_err(dev, "%s device probe failed\n", dev_name(dev));
 
 	return ret;
 }
