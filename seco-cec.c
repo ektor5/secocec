@@ -24,17 +24,6 @@
 
 #include "seco-cec.h"
 
-#define SECOCEC_MAX_ADDRS		1
-#define SECOCEC_DEV_NAME		"secocec"
-
-#define SMBUS_WRITE			0
-#define SMBUS_READ			1
-
-#define SMBTIMEOUT			0xFFFF
-
-#define CMD_BYTE_DATA			0
-#define CMD_WORD_DATA			1
-
 struct secocec_data {
 	struct device *dev;
 	struct platform_device *pdev;

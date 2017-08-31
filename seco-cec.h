@@ -16,9 +16,21 @@
 #ifndef __SECO_CEC_H__
 #define __SECO_CEC_H__
 
-// --------------------------------------------------------
-// ------------ SMBus definitons for Braswell -------------
-// --------------------------------------------------------
+#define SECOCEC_MAX_ADDRS		1
+#define SECOCEC_DEV_NAME		"secocec"
+
+#define SMBTIMEOUT			0xFFFF
+
+#define SMBUS_WRITE			0
+#define SMBUS_READ			1
+
+#define CMD_BYTE_DATA			0
+#define CMD_WORD_DATA			1
+
+/*
+ * SMBus definitons for Braswell
+ */
+
 #define BRA_DONE_STATUS			BIT(7)
 #define BRA_INUSE_STS			BIT(6)
 #define BRA_FAILED_OP			BIT(4)
@@ -50,14 +62,16 @@
 #define HDAT0              (BRA_SMB_BASE_ADDR + 5)
 #define HDAT1              (BRA_SMB_BASE_ADDR + 6)
 
-//
-// Microntroller Address
-//
+/*
+ * Microcontroller Address
+ */
+
 #define MICRO_ADDRESS			0x40
 
-//
-// STM32 SMBus Registers
-//
+/*
+ * STM32 SMBus Registers
+ */
+
 #define VERSION				0x00
 #define ENABLE_REGISTER_1		0x01
 #define ENABLE_REGISTER_2		0x02
@@ -117,9 +131,10 @@
 #define CEC_WRITE_DATA_08		0x38
 #define CEC_WRITE_BYTE0			0x39
 
-//
-// DFU mode register
-//
+/*
+ * DFU mode register
+ */
+
 #define DFU_BOOTLOADER_REVISION		0x00
 #define DFU_RESET_INTERNAL_COUNTER	0x01
 #define DFU_FLASH_UNLOCK		0x02
@@ -129,9 +144,10 @@
 #define DFU_JUMP_TO_USER_CODE		0x06
 #define DFU_WORD_READ			0x07
 
-//
-// Enabling register
-//
+/*
+ * Enabling register
+ */
+
 #define ENABLE_REGISTER_1_WATCHDOG		0x0001
 #define ENABLE_REGISTER_1_RESET_MODE_MASK       0x000E
 #define ENABLE_REGISTER_1_SYS_RESET_1S		0x0002
@@ -157,9 +173,10 @@
 #define ENABLE_REGISTER_2_INTERNAL_FAN_4PIN     0x0010
 #define ENABLE_REGISTER_2_EXTERNAL_FAN_4PIN     0x0020
 
-//
-// Status register
-//
+/*
+ * Status register
+ */
+
 #define STATUS_REGISTER_1_WATCHDOG		ENABLE_REGISTER_1_WATCHDOG
 #define STATUS_REGISTER_1_RESET_MODE_MASK       ENABLE_REGISTER_1_RESET_MODE_MASK
 #define STATUS_REGISTER_1_POWER_FAIL		ENABLE_REGISTER_1_RSVD00
@@ -175,9 +192,10 @@
 #define STATUS_REGISTER_1_IRDA_RC5		ENABLE_REGISTER_1_IRDA_RC5
 #define STATUS_REGISTER_1_IRDA_PASSTHROUGH      ENABLE_REGISTER_1_IRDA_PASSTHROUGH
 
-//
-// Status data
-//
+/*
+ * Status data
+ */
+
 #define CEC_STATUS_MSG_RECEIVED_MASK		BIT(0)
 #define CEC_STATUS_RX_ERROR_MASK		BIT(1)
 #define CEC_STATUS_MSG_SENT_MASK		BIT(2)
@@ -186,16 +204,18 @@
 #define CEC_STATUS_TX_NACK_ERROR		BIT(4)
 #define CEC_STATUS_TX_LINE_ERROR		BIT(5)
 
-//
-// After G3 values
-//
+/*
+ * After G3 values
+ */
+
 #define AFTER_G3_ON		0
 #define AFTER_G3_OFF		1
 #define AFTER_G3_LAST_STATE	2
 
-//
-// Watchdog
-//
+/*
+ * Watchdog
+ */
+
 #define WATCHDOG_CONFIGURATION_MODE_MASK	0x03	// Mask Watchdog field
 #define WATCHDOG_CONFIGURATION_MODE_NOACTION    0x00	// Watchdog field
 #define WATCHDOG_CONFIGURATION_MODE_PWB_1S      0x01	// Watchdog field
@@ -203,24 +223,25 @@
 #define WATCHDOG_CONFIGURATION_MODE_RESET       0x03	// Watchdog field
 #define WATCHDOG_CONFIGURATION_MODE_SIGNALING   0x04	// Flag
 
-// Firmware Recognition Signature
+/* Firmware Recognition Signature */
 #define FIRMWARE_RECOGNITION_SIGNATURE  ('R', 'i', 'C', 'o', 'N', 'o', 'S', \
 					'c', 'I', 'm', 'E', 'n', 'T', 'o')
 
-// Default value for unknown firmware
+/* Default value for unknown firmware */
 #define FIRMWARE_UNKNOWN		0xFFFF
 
-//
-// Firmware max dimension
-//
-// Not include NVS e AON/AOFF data, just the firmware code
+/*
+ * Firmware max dimension
+ */
+
+/* Not include NVS e AON/AOFF data, just the firmware code */
 #define FIRMWARE_SIZE			0x2800
 #define FIRMWARE_OFFSET			0x0000
 #define DEVICE_FIRMWARE_UPDATER_OFFSET  0x3000
 #define DEVICE_FIRMWARE_UPDATER_SIZE    0x1000
 #define MICRO_BINARY_SIZE		0x4000
 
-// switch firmware signature
+/* switch firmware signature */
 #define MICRO_SWITCH_MODE_SIGNATURE     0x5EC0
 
-#endif // __SECO_CEC_H__
+#endif /* __SECO_CEC_H__ */
