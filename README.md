@@ -71,14 +71,14 @@ To compile the module with debug messages:
 make DEBUG=1
 ```
 
-Feel free to open issues or mail me directly, make sure to include *dmesg*,
+Feel free to open issues or mail me directly. Make sure to include *dmesg*,
 *lsmod*, etc.. in the bug report.
 
 ## Credits
 
-Author: Ettore Chimenti
+Author: Ettore Chimenti  
 Thanks to: Hans Verkuil
 
-Copyright (C) 2017, Seco Srl
+Copyright (C) 2017, Seco Srl  
 Copyright (C) 2017, Aidilab
 
