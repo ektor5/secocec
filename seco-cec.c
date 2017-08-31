@@ -90,13 +90,13 @@ static int smb_word_op(short data_format,
 	/* request smbus regions */
 	if (!request_muxed_region(0xEB, 1, "CEC00001")) {
 		pr_debug("request_region 0xEB fail\n");
-		return -EIO;
+		return -ENXIO;
 	}
 
 	if (!request_muxed_region(BRA_SMB_BASE_ADDR, 7, "CEC00001")) {
 		pr_debug("request_region BRA_SMB_BASE_ADDR fail\n");
 		release_region(0xEB, 1);
-		return -EIO;
+		return -ENXIO;
 	}
 
 	/* active wait until ready */
@@ -135,7 +135,7 @@ static int smb_word_op(short data_format,
 	if (count > SMBTIMEOUT) {
 		outb(0xFF, HSTS);
 		pr_debug("smb_word_op SMBTIMEOUT_1\n");
-		status = -ETIME;
+		status = -EBUSY;
 		goto err;
 	}
 
