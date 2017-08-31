@@ -21,18 +21,18 @@ clean:
 	rm -rf *.o *~ core .depend .*.cmd *.ko *.mod.c .tmp_versions \
 	modules.order Module.symvers *.tmp *.log
 
-_src = seco-cec.c
+_src = seco-cec.c seco-cec.h
 
 checkpatch:
 	$(KERNELDIR)/scripts/checkpatch.pl --no-tree --show-types \
 		--ignore LINE_CONTINUATIONS \
-		--terse --strict -f $(PWD)/$(_src) Makefile
+		--terse --strict -f $(_src) Makefile
 
 checkpatch2:
 	$(KERNELDIR)/scripts/checkpatch.pl --no-tree --show-types \
 		--ignore LONG_LINE,LINE_CONTINUATIONS \
-		--terse --strict -f $(PWD)/$(_src) Makefile
+		--terse --strict -f $(_src) Makefile
 
 Lindent:
 	$(KERNELDIR)/scripts/Lindent \
-		$(PWD)/$(_src)
+		$(_src)
