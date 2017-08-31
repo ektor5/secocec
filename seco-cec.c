@@ -4,86 +4,38 @@
  *
  * Author:  Ettore Chimenti <ek5.chimenti@gmail.com>
  * Copyright (C) 2017, SECO Srl.
+ * Copyright (C) 2017, Aidilab Srl.
  *
  * This file is provided under a dual BSD/GPLv2 license.  When using or
  * redistributing this file, you may do so under either license.
- * 
+ *
  * Released under the terms of 3-clause BSD License
  * Released under the terms of GNU General Public License Version 2.0
  *
  */
 
-#include <linux/io.h>
-#include <linux/ioport.h>
-#include <linux/mm.h>
 #include <linux/interrupt.h>
 #include <linux/gpio.h>
 #include <linux/acpi.h>
 #include <linux/platform_device.h>
-#include <linux/gpio/consumer.h>
-#include <linux/gpio/machine.h>
-#include <linux/gpio.h>
-#include <linux/sched.h>
-#include <linux/fs.h>
-#include <linux/module.h>
-#include <linux/slab.h>
-#include <linux/debugfs.h>
-
-#include "seco-cec.h"
 
 // CEC Framework
 #include <media/cec.h>
 
-#define SECOCEC_MAX_ADDRS 1
-#define SECOCEC_DEV_NAME "secocec"
-#define GPIO_I2C6_SCL 51
-#define GPIOCHIP_SOUTHWEST 456
+#include "seco-cec.h"
 
-#define MICRO_ADDRESS	0x40
+#define SECOCEC_MAX_ADDRS		1
+#define SECOCEC_DEV_NAME		"secocec"
+#define GPIO_I2C6_SCL			51
+#define GPIOCHIP_SOUTHWEST		456
 
-#define SMBUS_WRITE	0
-#define SMBUS_READ	1
+#define SMBUS_WRITE			0
+#define SMBUS_READ			1
 
-#define SMBTIMEOUT 0xFFFF
+#define SMBTIMEOUT			0xFFFF
 
-#define CMD_BYTE_DATA					0
-#define CMD_WORD_DATA					1
-
-// --------------------------------------------------------
-// ------------ SMBus definitons for Braswell ------------
-// --------------------------------------------------------
-#define BRA_DONE_STATUS			(1<<7)
-#define	BRA_INUSE_STS			(1<<6)
-#define BRA_FAILED_OP			(1<<4)
-#define BRA_BUS_ERR			(1<<3)
-#define	BRA_DEV_ERR			(1<<2)
-#define BRA_INTR			(1<<1)
-#define BRA_HOST_BUSY			(1<<0)
-#define BRA_HSTS_ERR_MASK   (BRA_FAILED_OP | BRA_BUS_ERR | BRA_DEV_ERR)
-
-#define BRA_PEC_EN			(1<<7)
-#define	BRA_START			(1<<6)
-#define BRA_LAST__BYTE			(1<<5)
-#define BRA_SMB_CMD			(7<<2)
-#define	BRA_SMB_CMD_QUICK		(0<<2)
-#define BRA_SMB_CMD_BYTE		(1<<2)
-#define	BRA_SMB_CMD_BYTE_DATA		(2<<2)
-#define BRA_SMB_CMD_WORD_DATA		(3<<2)
-#define	BRA_SMB_CMD_PROCESS_CALL	(4<<2)
-#define BRA_SMB_CMD_BLOCK		(5<<2)
-#define	BRA_SMB_CMD_I2CREAD		(6<<2)
-#define BRA_SMB_CMD_BLOCK_PROCESS	(7<<2)
-#define BRA_INTREN			(1<<0)
-
-/* ---------------------------------------------------------------- */
-
-#define BRA_SMB_BASE_ADDR  0x2040
-#define HSTS               (BRA_SMB_BASE_ADDR + 0)
-#define HCNT               (BRA_SMB_BASE_ADDR + 2)
-#define HCMD               (BRA_SMB_BASE_ADDR + 3)
-#define XMIT_SLVA          (BRA_SMB_BASE_ADDR + 4)
-#define HDAT0              (BRA_SMB_BASE_ADDR + 5)
-#define HDAT1              (BRA_SMB_BASE_ADDR + 6)
+#define CMD_BYTE_DATA			0
+#define CMD_WORD_DATA			1
 
 struct secocec_data {
 	struct device *dev;
