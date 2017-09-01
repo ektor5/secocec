@@ -643,6 +643,82 @@ static int secocec_remove(struct platform_device *pdev)
 
 /* ----------------------------------------------------------------------- */
 
+#ifdef CONFIG_PM_SLEEP
+static int secocec_suspend(struct device *dev)
+{
+	int status;
+	unsigned short reg, result;
+
+	dev_dbg(dev, "Device going to suspend, disabling");
+
+	/* Clear the status register */
+	status = smb_rd16(STATUS_REGISTER_1, &reg);
+	if (status)
+		goto err;
+
+	status = smb_wr16(STATUS_REGISTER_1, reg, &result);
+	if (status)
+		goto err;
+
+	/* Disable the interrupts */
+	status = smb_rd16(ENABLE_REGISTER_1, &reg);
+	if (status)
+		goto err;
+
+	status = smb_wr16(ENABLE_REGISTER_1, reg &
+			  ~ENABLE_REGISTER_1_CEC &
+			  ~ENABLE_REGISTER_1_IRDA_RC5, &result);
+	if (status)
+		goto err;
+
+	return 0;
+
+err:
+	dev_err(dev, "Suspend failed (err: %d)", status);
+	return status;
+}
+
+static int secocec_resume(struct device *dev)
+{
+	int status;
+	unsigned short reg, result;
+
+	dev_dbg(dev, "Resuming device from suspend");
+
+	/* Clear the status register */
+	status = smb_rd16(STATUS_REGISTER_1, &reg);
+	if (status)
+		goto err;
+
+	status = smb_wr16(STATUS_REGISTER_1, reg, &result);
+	if (status)
+		goto err;
+
+	/* Enable the interrupts */
+	status = smb_rd16(ENABLE_REGISTER_1, &reg);
+	if (status)
+		goto err;
+
+	status = smb_wr16(ENABLE_REGISTER_1,
+			  reg | ENABLE_REGISTER_1_CEC, &result);
+	if (status)
+		goto err;
+
+	dev_dbg(dev, "Device resumed from suspend");
+
+	return 0;
+
+err:
+	dev_err(dev, "Resume failed (err: %d)", status);
+	return status;
+}
+
+static SIMPLE_DEV_PM_OPS(secocec_pm_ops, secocec_suspend, secocec_resume);
+#define SECOCEC_PM_OPS (&secocec_pm_ops)
+#else
+#define SECOCEC_PM_OPS NULL
+#endif
+
 #ifdef CONFIG_ACPI
 static const struct acpi_device_id secocec_acpi_match[] = {
 	{"CEC00001", 0},
@@ -656,6 +732,7 @@ static struct platform_driver secocec_driver = {
 	.driver = {
 		   .name = SECOCEC_DEV_NAME,
 		   .acpi_match_table = ACPI_PTR(secocec_acpi_match),
+		   .pm = SECOCEC_PM_OPS,
 		   },
 	.probe = secocec_probe,
 	.remove = secocec_remove,
