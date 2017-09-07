@@ -71,7 +71,7 @@ static int smb_word_op(short data_format,
 		_data_format = BRA_SMB_CMD_WORD_DATA;
 		break;
 	default:
-		return 1;
+		return -EINVAL;
 	}
 
 	/* Request SMBus regions */
@@ -120,7 +120,6 @@ static int smb_word_op(short data_format,
 	}
 
 	if (count > SMBTIMEOUT) {
-		outb(0xFF, HSTS);
 		pr_debug("smb_word_op SMBTIMEOUT_1\n");
 		status = -EBUSY;
 		goto err;
@@ -128,7 +127,6 @@ static int smb_word_op(short data_format,
 
 	ret = inb(HSTS);
 	if (ret & (BRA_HSTS_ERR_MASK)) {
-		outb(0xFF, HSTS);
 		pr_debug("smb_word_op HSTS(0x%02X): 0x%X\n", cmd, ret);
 		status = -EIO;
 		goto err;
@@ -140,9 +138,8 @@ static int smb_word_op(short data_format,
 			 cmd, count, *result);
 	}
 
-	outb(0xFF, HSTS);
-
 err:
+	outb(0xFF, HSTS);
 	release_region(BRA_SMB_BASE_ADDR, 7);
 	release_region(0xEB, 1);
 
