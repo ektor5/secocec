@@ -93,10 +93,9 @@ static int smb_word_op(short data_format,
 	}
 
 	if (count > SMBTIMEOUT) {
-		pr_debug("smb_word_op SMBTIMEOUT\n");
+		/* Reset the lock instead of failing */
 		outb(0xFF, HSTS);
-		status = -ETIME;
-		goto err;
+		pr_warn("smb_word_op SMBTIMEOUT\n");
 	}
 
 	outb(0x00, HCNT);
