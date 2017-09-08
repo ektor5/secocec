@@ -523,9 +523,7 @@ static irqreturn_t secocec_irq_handler_quick(int irq, void *priv)
 static int secocec_acpi_probe(struct secocec_data *sdev)
 {
 	struct device *dev = sdev->dev;
-	struct platform_device *pdev = sdev->pdev;
 	struct gpio_desc *gpio;
-	int ret;
 	int irq = 0;
 
 	gpio = devm_gpiod_get(dev, NULL, GPIOF_IN);
@@ -534,20 +532,12 @@ static int secocec_acpi_probe(struct secocec_data *sdev)
 		return PTR_ERR(gpio);
 	}
 
-	ret = gpiod_to_irq(gpio);
-	if (ret < 0)
-		dev_err(dev, "GPIO is not binded to IRQ");
-	else
-		irq = ret;
-
-	dev_dbg(dev, "irq-gpio is binded to IRQ %d", irq);
-
-	if (irq != acpi_dev_gpio_irq_get(ACPI_COMPANION(dev), 0)) {
-		dev_warn(dev, "IRQ %d is not GPIO %d (%d), available %d\n",
-			 irq, desc_to_gpio(gpio),
-			 acpi_dev_gpio_irq_get(ACPI_COMPANION(dev), 0),
-			 platform_irq_count(pdev));
+	irq = gpiod_to_irq(gpio);
+	if (irq < 0) {
+		dev_err(dev, "Cannot find valid irq");
+		return -ENODEV;
 	}
+	dev_dbg(dev, "irq-gpio is binded to IRQ %d", irq);
 
 	sdev->irq = irq;
 
@@ -561,26 +551,19 @@ static int secocec_probe(struct platform_device *pdev)
 	int ret;
 	u8 opts;
 
-	if (has_acpi_companion(dev)) {
-		dev_dbg(dev, "ACPI companion found");
-		ret = secocec_acpi_probe(secocec);
-	} else {
+	if (!has_acpi_companion(dev)) {
 		dev_dbg(dev, "Cannot find any ACPI companion");
 		ret = -ENODEV;
 		goto err;
 	}
 
+	ret = secocec_acpi_probe(secocec);
 	if (ret) {
 		dev_err(dev, "Cannot assign gpio to IRQ");
 		ret = -ENODEV;
 		goto err;
 	}
 
-	if (secocec->irq <= 0) {
-		dev_err(dev, "Cannot find irq (%d)", secocec->irq);
-		ret = -ENODEV;
-		goto err;
-	}
 	dev_dbg(dev, "IRQ detected at %d", secocec->irq);
 
 	ret = devm_request_threaded_irq(dev,
