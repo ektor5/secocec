@@ -125,7 +125,7 @@ static int smb_word_op(short data_format,
 	}
 
 	ret = inb(HSTS);
-	if (ret & (BRA_HSTS_ERR_MASK)) {
+	if (ret & BRA_HSTS_ERR_MASK) {
 		pr_debug("smb_word_op HSTS(0x%02X): 0x%X\n", cmd, ret);
 		status = -EIO;
 		goto err;
