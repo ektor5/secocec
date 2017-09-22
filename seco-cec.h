@@ -20,6 +20,7 @@
 #define SECOCEC_DEV_NAME		"secocec"
 
 #define SMBTIMEOUT			0xFFFF
+#define SMB_POLL_UDELAY			10
 
 #define SMBUS_WRITE			0
 #define SMBUS_READ			1

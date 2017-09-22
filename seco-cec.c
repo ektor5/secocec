@@ -89,7 +89,7 @@ static int smb_word_op(short data_format,
 	/* Active wait until ready */
 	for (count = 0; (count <= SMBTIMEOUT) && (inb(HSTS) & BRA_INUSE_STS);
 	     ++count) {
-		nop();
+		udelay(SMB_POLL_DELAY);
 	}
 
 	if (count > SMBTIMEOUT) {
