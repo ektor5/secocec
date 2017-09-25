@@ -18,6 +18,7 @@
 #include <linux/gpio.h>
 #include <linux/acpi.h>
 #include <linux/platform_device.h>
+#include <linux/delay.h>
 
 /* CEC Framework */
 #include <media/cec.h>
@@ -75,21 +76,15 @@ static int smb_word_op(short data_format,
 	}
 
 	/* Request SMBus regions */
-	if (!request_muxed_region(0xEB, 1, "CEC00001")) {
-		pr_debug("request_region 0xEB fail\n");
-		return -ENXIO;
-	}
-
 	if (!request_muxed_region(BRA_SMB_BASE_ADDR, 7, "CEC00001")) {
 		pr_debug("request_region BRA_SMB_BASE_ADDR fail\n");
-		release_region(0xEB, 1);
 		return -ENXIO;
 	}
 
 	/* Active wait until ready */
 	for (count = 0; (count <= SMBTIMEOUT) && (inb(HSTS) & BRA_INUSE_STS);
 	     ++count) {
-		udelay(SMB_POLL_DELAY);
+		udelay(SMB_POLL_UDELAY);
 	}
 
 	if (count > SMBTIMEOUT) {
@@ -114,8 +109,7 @@ static int smb_word_op(short data_format,
 
 	for (count = 0; (count <= SMBTIMEOUT) && ((inb(HSTS) & BRA_HOST_BUSY));
 	     count++) {
-		outb(0x00, 0xEB);
-		outb(0x01, 0xEB);
+		udelay(SMB_POLL_UDELAY);
 	}
 
 	if (count > SMBTIMEOUT) {
@@ -140,7 +134,6 @@ static int smb_word_op(short data_format,
 err:
 	outb(0xFF, HSTS);
 	release_region(BRA_SMB_BASE_ADDR, 7);
-	release_region(0xEB, 1);
 
 	return status;
 }
