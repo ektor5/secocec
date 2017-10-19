@@ -32,22 +32,6 @@ struct secocec_data {
 	int irq;
 };
 
-static struct secocec_data *secocec_data_init(struct platform_device *pdev)
-{
-	struct secocec_data *drvdata;
-	struct device *dev = &pdev->dev;
-
-	drvdata = devm_kzalloc(dev, sizeof(*drvdata), GFP_KERNEL);
-	if (!drvdata)
-		return NULL;
-
-	dev_set_drvdata(dev, drvdata);
-
-	drvdata->pdev = pdev;
-	drvdata->dev = dev;
-
-	return drvdata;
-}
 
 #define smb_wr16(cmd, data) smb_word_op(CMD_WORD_DATA, MICRO_ADDRESS, \
 					     cmd, data, SMBUS_WRITE, NULL)
@@ -537,10 +521,21 @@ static int secocec_acpi_probe(struct secocec_data *sdev)
 
 static int secocec_probe(struct platform_device *pdev)
 {
+	struct secocec_data *secocec;
 	struct device *dev = &pdev->dev;
-	struct secocec_data *secocec = secocec_data_init(pdev);
 	int ret;
 	u8 opts;
+
+	secocec = devm_kzalloc(dev, sizeof(*secocec), GFP_KERNEL);
+	if (!secocec) {
+		dev_err(dev, "Cannot allocate drvdata");
+		return -ENOMEM;
+	}
+
+	dev_set_drvdata(dev, secocec);
+
+	secocec->pdev = pdev;
+	secocec->dev = dev;
 
 	if (!has_acpi_companion(dev)) {
 		dev_dbg(dev, "Cannot find any ACPI companion");
