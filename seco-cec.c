@@ -570,8 +570,7 @@ static int secocec_probe(struct platform_device *pdev)
 		goto err;
 	}
 	/* Allocate CEC adapter */
-	opts = CEC_CAP_TRANSMIT | CEC_CAP_PHYS_ADDR |
-	    CEC_CAP_LOG_ADDRS | CEC_CAP_PASSTHROUGH | CEC_CAP_RC;
+	opts = CEC_CAP_DEFAULTS | CEC_CAP_PHYS_ADDR;
 
 	secocec->cec_adap = cec_allocate_adapter(&secocec_cec_adap_ops,
 						 secocec,
