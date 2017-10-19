@@ -256,11 +256,6 @@ static int secocec_adap_transmit(struct cec_adapter *adap, u8 attempts,
 	for (i = 0; i < msg->len; i++)
 		pr_debug("\t byte %d : 0x%02x\n", i, msg->msg[i]);
 
-	if (msg->len > 12) {
-		dev_warn(dev,
-			 "Trying to send a message longer than 12 bytes, cutting");
-		msg->len = 12;
-	}
 	/* Device msg len already accounts for header */
 	payload_id_len = msg->len - 1;
 
@@ -369,11 +364,6 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short status_val)
 
 	payload_id_len = val;
 	dev_dbg(dev, "Incoming message (payload len %d):", payload_id_len);
-
-	if (payload_id_len > 11) {
-		payload_id_len = 11;
-		dev_warn(dev, "Message received longer than 12 bytes, cutting");
-	}
 
 	/* Device msg len already accounts for the header */
 	msg.len = payload_id_len + 1;
@@ -541,6 +531,7 @@ static int secocec_probe(struct platform_device *pdev)
 	struct secocec_data *secocec = secocec_data_init(pdev);
 	int ret;
 	u8 opts;
+	u16 val;
 
 	if (!has_acpi_companion(dev)) {
 		dev_dbg(dev, "Cannot find any ACPI companion");
@@ -556,6 +547,19 @@ static int secocec_probe(struct platform_device *pdev)
 	}
 
 	dev_dbg(dev, "IRQ detected at %d", secocec->irq);
+
+	/* Firmware version check */
+	ret = smb_rd16(VERSION, &val);
+	if (ret) {
+		dev_err(dev, "Cannot check fw version");
+		goto err;
+	}
+	if (val < SECOCEC_LATEST_FW){
+		dev_err(dev, "CEC Firmware not supported (v.%04x). Use ver > v.%04x",
+			val, SECOCEC_LATEST_FW);
+		ret = -EINVAL;
+		goto err;
+	}
 
 	ret = devm_request_threaded_irq(dev,
 					secocec->irq,
