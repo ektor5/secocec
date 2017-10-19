@@ -578,7 +578,8 @@ static int secocec_probe(struct platform_device *pdev)
 						 dev_name(dev),
 						 opts, SECOCEC_MAX_ADDRS);
 
-	ret = PTR_ERR_OR_ZERO(secocec->cec_adap);
+	if (IS_ERR(secocec->cec_adap))
+		ret = PTR_ERR(secocec->cec_adap);
 	if (ret)
 		goto err;
 
