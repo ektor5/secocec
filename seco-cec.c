@@ -19,6 +19,7 @@
 #include <linux/acpi.h>
 #include <linux/platform_device.h>
 #include <linux/delay.h>
+#include <linux/pci.h>
 
 /* CEC Framework */
 #include <media/cec.h>
@@ -29,6 +30,7 @@ struct secocec_data {
 	struct device *dev;
 	struct platform_device *pdev;
 	struct cec_adapter *cec_adap;
+	struct cec_notifier *notifier;
 	int irq;
 };
 
@@ -286,9 +288,6 @@ err:
 
 static int secocec_tx_done(struct cec_adapter *adap, unsigned short status_val)
 {
-	struct secocec_data *cec = adap->priv;
-	struct device *dev = cec->dev;
-
 	int status = 0;
 
 	if (status_val & CEC_STATUS_TX_ERROR_MASK) {
@@ -511,6 +510,7 @@ static int secocec_probe(struct platform_device *pdev)
 {
 	struct secocec_data *secocec;
 	struct device *dev = &pdev->dev;
+	struct pci_dev *hdmi_dev;
 	int ret;
 	u8 opts;
 
@@ -524,6 +524,16 @@ static int secocec_probe(struct platform_device *pdev)
 
 	secocec->pdev = pdev;
 	secocec->dev = dev;
+
+	dev_dbg(dev, "Searching for gpu...");
+	hdmi_dev = pci_get_device(0x8086, 0x0416, NULL);
+	if (!hdmi_dev)
+		return -ENODEV;
+	dev_dbg(dev, "Found!");
+
+	secocec->notifier = cec_notifier_get(&hdmi_dev->dev);
+	if (!secocec->notifier)
+		return -ENOMEM;
 
 	if (!has_acpi_companion(dev)) {
 		dev_dbg(dev, "Cannot find any ACPI companion");
@@ -569,6 +579,8 @@ static int secocec_probe(struct platform_device *pdev)
 	if (ret)
 		goto err_delete_adapter;
 
+	cec_register_cec_notifier(secocec->cec_adap, secocec->notifier);
+
 	platform_set_drvdata(pdev, secocec);
 
 	dev_dbg(dev, "Device registered");
@@ -590,6 +602,7 @@ static int secocec_remove(struct platform_device *pdev)
 	struct secocec_data *secocec = platform_get_drvdata(pdev);
 
 	cec_unregister_adapter(secocec->cec_adap);
+	cec_notifier_put(secocec->notifier);
 
 	return 0;
 }
