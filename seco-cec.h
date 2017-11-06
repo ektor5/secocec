@@ -20,7 +20,7 @@
 #define SECOCEC_DEV_NAME		"secocec"
 #define SECOCEC_LATEST_FW		0x0f0b
 
-#define SMBTIMEOUT			0xFFFF
+#define SMBTIMEOUT			0xffff
 #define SMB_POLL_UDELAY			10
 
 #define SMBUS_WRITE			0
@@ -84,12 +84,12 @@
 #define INTERNAL_FAN_RPM		0x07
 #define EXTERNAL_FAN_FREQUENCY		0x08
 #define EXTERNAL_FAN_DC			0x09
-#define EXTERNAL_FAN_RPM		0x0A
-#define LAST_STATE			0x0B
-#define AFTER_G3			0x0C
-#define RESERVED_0D			0x0D
-#define RESERVED_0E			0x0E
-#define RESERVED_0F			0x0F
+#define EXTERNAL_FAN_RPM		0x0a
+#define LAST_STATE			0x0b
+#define AFTER_G3			0x0c
+#define RESERVED_0D			0x0d
+#define RESERVED_0E			0x0e
+#define RESERVED_0F			0x0f
 #define WATCHDOG_CONFIGURATION		0x10
 #define WATCHDOG_DELAY			0x11
 #define WATCHDOG_TIMEOUT		0x12
@@ -100,12 +100,12 @@
 #define RESERVED_17			0x17
 #define RESERVED_18			0x18
 #define RESERVED_19			0x19
-#define JUMP_TO_BOOTLOADER		0x1A
-#define REGION_SELECTION		0x1B
-#define REGION_SIZE			0x1C
-#define FLASH_UNLOCK			0x1D
-#define FLASH_LOCK			0x1E
-#define WORD_PROGRAM			0x1F
+#define JUMP_TO_BOOTLOADER		0x1a
+#define REGION_SELECTION		0x1b
+#define REGION_SIZE			0x1c
+#define FLASH_UNLOCK			0x1d
+#define FLASH_LOCK			0x1e
+#define WORD_PROGRAM			0x1f
 #define WORD_READ			0x20
 #define ERASE_REGION			0x21
 #define REGION_OFFSET			0x22
@@ -117,12 +117,12 @@
 
 #define CEC_STATUS			0x28
 #define CEC_DEVICE_LA			0x29	//bit[7:0] logical Address
-#define CEC_READ_OPERATION_ID		0x2A	//bit[7:0] operationID
-#define CEC_READ_DATA_LENGTH		0x2B
-#define CEC_READ_DATA_00		0x2C
-#define CEC_READ_DATA_02		0x2D
-#define CEC_READ_DATA_04		0x2E
-#define CEC_READ_DATA_06		0x2F
+#define CEC_READ_OPERATION_ID		0x2a	//bit[7:0] operationID
+#define CEC_READ_DATA_LENGTH		0x2b
+#define CEC_READ_DATA_00		0x2c
+#define CEC_READ_DATA_02		0x2d
+#define CEC_READ_DATA_04		0x2e
+#define CEC_READ_DATA_06		0x2f
 #define CEC_READ_DATA_08		0x30
 #define CEC_READ_DATA_10		0x31
 #define CEC_READ_DATA_12		0x32
@@ -156,7 +156,7 @@
  */
 
 #define ENABLE_REGISTER_1_WATCHDOG		0x0001
-#define ENABLE_REGISTER_1_RESET_MODE_MASK       0x000E
+#define ENABLE_REGISTER_1_RESET_MODE_MASK       0x000e
 #define ENABLE_REGISTER_1_SYS_RESET_1S		0x0002
 #define ENABLE_REGISTER_1_POWER_BUTTON_1S       0x0004
 #define ENABLE_REGISTER_1_POWER_BUTTON_4S       0x0008
@@ -235,7 +235,7 @@
 					'c', 'I', 'm', 'E', 'n', 'T', 'o')
 
 /* Default value for unknown firmware */
-#define FIRMWARE_UNKNOWN		0xFFFF
+#define FIRMWARE_UNKNOWN		0xffff
 
 /*
  * Firmware max dimension
@@ -249,6 +249,6 @@
 #define MICRO_BINARY_SIZE		0x4000
 
 /* switch firmware signature */
-#define MICRO_SWITCH_MODE_SIGNATURE     0x5EC0
+#define MICRO_SWITCH_MODE_SIGNATURE     0x5ec0
 
 #endif /* __SECO_CEC_H__ */

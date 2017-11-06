@@ -32,22 +32,6 @@ struct secocec_data {
 	int irq;
 };
 
-static struct secocec_data *secocec_data_init(struct platform_device *pdev)
-{
-	struct secocec_data *drvdata;
-	struct device *dev = &pdev->dev;
-
-	drvdata = devm_kzalloc(dev, sizeof(*drvdata), GFP_KERNEL);
-	if (!drvdata)
-		return NULL;
-
-	dev_set_drvdata(dev, drvdata);
-
-	drvdata->pdev = pdev;
-	drvdata->dev = dev;
-
-	return drvdata;
-}
 
 #define smb_wr16(cmd, data) smb_word_op(CMD_WORD_DATA, MICRO_ADDRESS, \
 					     cmd, data, SMBUS_WRITE, NULL)
@@ -89,12 +73,12 @@ static int smb_word_op(short data_format,
 
 	if (count > SMBTIMEOUT) {
 		/* Reset the lock instead of failing */
-		outb(0xFF, HSTS);
+		outb(0xff, HSTS);
 		pr_warn("smb_word_op SMBTIMEOUT\n");
 	}
 
 	outb(0x00, HCNT);
-	outb((unsigned char)(slave_addr & 0xFE) | operation, XMIT_SLVA);
+	outb((unsigned char)(slave_addr & 0xfe) | operation, XMIT_SLVA);
 	outb(cmd, HCMD);
 	inb(HCNT);
 
@@ -126,13 +110,13 @@ static int smb_word_op(short data_format,
 	}
 
 	if (operation == SMBUS_READ) {
-		*result = ((inb(HDAT0) & 0xFF) + ((inb(HDAT1) & 0xFF) << 8));
+		*result = ((inb(HDAT0) & 0xff) + ((inb(HDAT1) & 0xff) << 8));
 		pr_debug("smb_word_op READ (0x%02x - count %05d): 0x%04x\n",
 			 cmd, count, *result);
 	}
 
 err:
-	outb(0xFF, HSTS);
+	outb(0xff, HSTS);
 	release_region(BRA_SMB_BASE_ADDR, 7);
 
 	return status;
@@ -213,31 +197,24 @@ static int secocec_adap_log_addr(struct cec_adapter *adap, u8 logical_addr)
 
 	status = smb_rd16(ENABLE_REGISTER_1, &enable_val);
 	if (status)
-		goto err;
+		return status;
 
-	dev_dbg(dev, "Set logical address: Disabling device");
 	status = smb_wr16(ENABLE_REGISTER_1,
 			  enable_val & ~ENABLE_REGISTER_1_CEC);
 	if (status)
-		goto err;
+		return status;
 
 	/* Write logical address */
-	dev_dbg(dev, "Set logical address to %02x", val);
 	status = smb_wr16(CEC_DEVICE_LA, val);
 	if (status)
-		goto err;
+		return status;
 
-	dev_dbg(dev, "Set logical address: Re-enabling device");
 	status = smb_wr16(ENABLE_REGISTER_1,
 			  enable_val | ENABLE_REGISTER_1_CEC);
 	if (status)
-		goto err;
+		return status;
 
 	return 0;
-
-err:
-	dev_err(dev, "Set logical address failed (%d)", status);
-	return status;
 }
 
 static int secocec_adap_transmit(struct cec_adapter *adap, u8 attempts,
@@ -314,20 +291,15 @@ static int secocec_tx_done(struct cec_adapter *adap, unsigned short status_val)
 			cec_transmit_done(adap, CEC_TX_STATUS_ARB_LOST, 1, 0, 0,
 					  0);
 			status = -EBUSY;
-			dev_warn(dev, "Transmit failed (LINE_ERR)");
 		} else if (status_val & CEC_STATUS_TX_NACK_ERROR) {
 			cec_transmit_done(adap, CEC_TX_STATUS_NACK, 0, 1, 0, 0);
 			status = -EAGAIN;
-			dev_dbg(dev, "Transmit not acknowledged (NACK)");
 		} else {
 			cec_transmit_done(adap, CEC_TX_STATUS_ERROR, 0, 0, 0,
 					  1);
 			status = -EIO;
-			dev_warn(dev, "Transmit failed (ERROR)");
 		}
-
 	} else {
-		dev_dbg(dev, "Transmitted frame successfully");
 		cec_transmit_done(adap, CEC_TX_STATUS_OK, 0, 0, 0, 0);
 	}
 
@@ -397,10 +369,10 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short status_val)
 				goto err;
 
 			/* low byte, skipping header */
-			payload_msg[(i << 1)] = val & 0x00FF;
+			payload_msg[(i << 1)] = val & 0x00ff;
 
 			/* hi byte */
-			payload_msg[(i << 1) + 1] = (val & 0xFF00) >> 8;
+			payload_msg[(i << 1) + 1] = (val & 0xff00) >> 8;
 		}
 	}
 
@@ -527,11 +499,22 @@ static int secocec_acpi_probe(struct secocec_data *sdev)
 
 static int secocec_probe(struct platform_device *pdev)
 {
+	struct secocec_data *secocec;
 	struct device *dev = &pdev->dev;
-	struct secocec_data *secocec = secocec_data_init(pdev);
 	int ret;
 	u8 opts;
 	u16 val;
+
+	secocec = devm_kzalloc(dev, sizeof(*secocec), GFP_KERNEL);
+	if (!secocec) {
+		dev_err(dev, "Cannot allocate drvdata");
+		return -ENOMEM;
+	}
+
+	dev_set_drvdata(dev, secocec);
+
+	secocec->pdev = pdev;
+	secocec->dev = dev;
 
 	if (!has_acpi_companion(dev)) {
 		dev_dbg(dev, "Cannot find any ACPI companion");
