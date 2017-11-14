@@ -8,7 +8,7 @@ Compatible with:
 
 ## Compile
 
-Make sure you have Linux kernel headers >= 4.10.
+Make sure you have Linux kernel headers >= 4.14.
 
 ```bash
 # install dependencies (make, git, ecc..)
