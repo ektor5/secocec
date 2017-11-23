@@ -281,9 +281,6 @@ err:
 
 static int secocec_tx_done(struct cec_adapter *adap, unsigned short status_val)
 {
-	struct secocec_data *cec = adap->priv;
-	struct device *dev = cec->dev;
-
 	int status = 0;
 
 	if (status_val & CEC_STATUS_TX_ERROR_MASK) {
