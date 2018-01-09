@@ -18,6 +18,7 @@
 
 #define SECOCEC_MAX_ADDRS		1
 #define SECOCEC_DEV_NAME		"secocec"
+#define SECOCEC_LATEST_FW		0x0f0b
 
 #define SMBTIMEOUT			0xffff
 #define SMB_POLL_UDELAY			10
@@ -113,6 +114,7 @@
 #define RESET_CONFIGURATION		0x25
 #define CURRENT_BOOTLOADER		0x26
 #define RESERVED_027			0x27
+
 #define CEC_STATUS			0x28
 #define CEC_DEVICE_LA			0x29	//bit[7:0] logical Address
 #define CEC_READ_OPERATION_ID		0x2a	//bit[7:0] operationID
@@ -122,15 +124,19 @@
 #define CEC_READ_DATA_04		0x2e
 #define CEC_READ_DATA_06		0x2f
 #define CEC_READ_DATA_08		0x30
-#define CEC_READ_BYTE0			0x31
-#define CEC_WRITE_OPERATION_ID		0x32	//bit[7:0] operationID
-#define CEC_WRITE_DATA_LENGTH		0x33
-#define CEC_WRITE_DATA_00		0x34
-#define CEC_WRITE_DATA_02		0x35
-#define CEC_WRITE_DATA_04		0x36
-#define CEC_WRITE_DATA_06		0x37
-#define CEC_WRITE_DATA_08		0x38
-#define CEC_WRITE_BYTE0			0x39
+#define CEC_READ_DATA_10		0x31
+#define CEC_READ_DATA_12		0x32
+#define CEC_READ_BYTE0		0x33
+#define CEC_WRITE_OPERATION_ID	0x34	//bit[7:0] operationID
+#define CEC_WRITE_DATA_LENGTH		0x35
+#define CEC_WRITE_DATA_00		0x36
+#define CEC_WRITE_DATA_02		0x37
+#define CEC_WRITE_DATA_04		0x38
+#define CEC_WRITE_DATA_06		0x39
+#define CEC_WRITE_DATA_08		0x3a
+#define CEC_WRITE_DATA_10		0x3b
+#define CEC_WRITE_DATA_12		0x3c
+#define CEC_WRITE_BYTE0		0x3d
 
 /*
  * DFU mode register
