@@ -20,6 +20,7 @@
 #include <linux/platform_device.h>
 #include <linux/delay.h>
 #include <linux/pci.h>
+#include <drm/drmP.h>
 
 /* CEC Framework */
 #include <media/cec.h>
@@ -510,7 +511,9 @@ static int secocec_probe(struct platform_device *pdev)
 {
 	struct secocec_data *secocec;
 	struct device *dev = &pdev->dev;
-	struct pci_dev *hdmi_dev;
+	struct pci_dev *gpu_dev;
+	struct drm_device *hdmi_dev;
+
 	int ret;
 	u8 opts;
 
@@ -526,12 +529,18 @@ static int secocec_probe(struct platform_device *pdev)
 	secocec->dev = dev;
 
 	dev_dbg(dev, "Searching for gpu...");
-	hdmi_dev = pci_get_device(0x8086, 0x0416, NULL);
+	gpu_dev = pci_get_device(0x8086, 0x22b1, NULL);
+	if (!gpu_dev)
+		return -ENODEV;
+	dev_dbg(dev, "Found!");
+
+	dev_dbg(dev, "Searching for drm drvdata...");
+	hdmi_dev = pci_get_drvdata(gpu_dev);
 	if (!hdmi_dev)
 		return -ENODEV;
 	dev_dbg(dev, "Found!");
 
-	secocec->notifier = cec_notifier_get(&hdmi_dev->dev);
+	secocec->notifier = cec_notifier_get(hdmi_dev->dev);
 	if (!secocec->notifier)
 		return -ENOMEM;
 
@@ -563,7 +572,7 @@ static int secocec_probe(struct platform_device *pdev)
 		goto err;
 	}
 	/* Allocate CEC adapter */
-	opts = CEC_CAP_DEFAULTS | CEC_CAP_PHYS_ADDR;
+	opts = CEC_CAP_DEFAULTS;
 
 	secocec->cec_adap = cec_allocate_adapter(&secocec_cec_adap_ops,
 						 secocec,
