@@ -64,7 +64,7 @@ static int smb_word_op(short data_format,
 
 	/* Request SMBus regions */
 	if (!request_muxed_region(BRA_SMB_BASE_ADDR, 7, "CEC00001")) {
-		pr_debug("request_region BRA_SMB_BASE_ADDR fail\n");
+		pr_debug("%s: request_region BRA_SMB_BASE_ADDR fail\n, __func__");
 		return -ENXIO;
 	}
 
@@ -77,7 +77,7 @@ static int smb_word_op(short data_format,
 	if (count > SMBTIMEOUT) {
 		/* Reset the lock instead of failing */
 		outb(0xff, HSTS);
-		pr_warn("smb_word_op SMBTIMEOUT\n");
+		pr_warn("%s: SMBTIMEOUT\n",__func__);
 	}
 
 	outb(0x00, HCNT);
@@ -88,8 +88,8 @@ static int smb_word_op(short data_format,
 	if (operation == SMBUS_WRITE) {
 		outb((unsigned char)data, HDAT0);
 		outb((unsigned char)(data >> 8), HDAT1);
-		pr_debug("smb_word_op WRITE (0x%02x - count %05d): 0x%04x\n",
-			 cmd, count, data);
+		pr_debug("%s: WRITE (0x%02x - count %05d): 0x%04x\n",
+			 , __func__, cmd, count, data);
 	}
 
 	outb(BRA_START + _data_format, HCNT);
@@ -100,22 +100,22 @@ static int smb_word_op(short data_format,
 	}
 
 	if (count > SMBTIMEOUT) {
-		pr_debug("smb_word_op SMBTIMEOUT_1\n");
+		pr_debug("%s: SMBTIMEOUT_1\n", __func__);
 		status = -EBUSY;
 		goto err;
 	}
 
 	ret = inb(HSTS);
 	if (ret & BRA_HSTS_ERR_MASK) {
-		pr_debug("smb_word_op HSTS(0x%02X): 0x%X\n", cmd, ret);
+		pr_debug("%s: HSTS(0x%02X): 0x%X\n", cmd, ret, __func__);
 		status = -EIO;
 		goto err;
 	}
 
 	if (operation == SMBUS_READ) {
 		*result = ((inb(HDAT0) & 0xff) + ((inb(HDAT1) & 0xff) << 8));
-		pr_debug("smb_word_op READ (0x%02x - count %05d): 0x%04x\n",
-			 cmd, count, *result);
+		pr_debug("%s: READ (0x%02x - count %05d): 0x%04x\n",
+			 cmd, count, *result, __func__);
 	}
 
 err:
@@ -509,10 +509,8 @@ static int secocec_probe(struct platform_device *pdev)
 	u16 val;
 
 	secocec = devm_kzalloc(dev, sizeof(*secocec), GFP_KERNEL);
-	if (!secocec) {
-		dev_err(dev, "Cannot allocate drvdata");
+	if (!secocec)
 		return -ENOMEM;
-	}
 
 	dev_set_drvdata(dev, secocec);
 
@@ -556,7 +554,7 @@ static int secocec_probe(struct platform_device *pdev)
 		dev_err(dev, "Cannot check fw version");
 		goto err;
 	}
-	if (val < SECOCEC_LATEST_FW){
+	if (val < SECOCEC_LATEST_FW) {
 		dev_err(dev, "CEC Firmware not supported (v.%04x). Use ver > v.%04x",
 			val, SECOCEC_LATEST_FW);
 		ret = -EINVAL;
