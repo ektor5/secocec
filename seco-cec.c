@@ -61,7 +61,7 @@ static int smb_word_op(short data_format,
 
 	/* Request SMBus regions */
 	if (!request_muxed_region(BRA_SMB_BASE_ADDR, 7, "CEC00001")) {
-		pr_debug("%s: request_region BRA_SMB_BASE_ADDR fail\n, __func__");
+		pr_debug("%s: request_region BRA_SMB_BASE_ADDR fail\n", __func__);
 		return -ENXIO;
 	}
 
@@ -86,7 +86,7 @@ static int smb_word_op(short data_format,
 		outb((unsigned char)data, HDAT0);
 		outb((unsigned char)(data >> 8), HDAT1);
 		pr_debug("%s: WRITE (0x%02x - count %05d): 0x%04x\n",
-			 , __func__, cmd, count, data);
+			 __func__, cmd, count, data);
 	}
 
 	outb(BRA_START + _data_format, HCNT);
@@ -104,7 +104,7 @@ static int smb_word_op(short data_format,
 
 	ret = inb(HSTS);
 	if (ret & BRA_HSTS_ERR_MASK) {
-		pr_debug("%s: HSTS(0x%02X): 0x%X\n", cmd, ret, __func__);
+		pr_debug("%s: HSTS(0x%02X): 0x%X\n", __func__, cmd, ret);
 		status = -EIO;
 		goto err;
 	}
@@ -112,7 +112,7 @@ static int smb_word_op(short data_format,
 	if (operation == SMBUS_READ) {
 		*result = ((inb(HDAT0) & 0xff) + ((inb(HDAT1) & 0xff) << 8));
 		pr_debug("%s: READ (0x%02x - count %05d): 0x%04x\n",
-			 cmd, count, *result, __func__);
+			 __func__, cmd, count, *result);
 	}
 
 err:
