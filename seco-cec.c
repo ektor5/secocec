@@ -30,6 +30,7 @@ struct secocec_data {
 	struct platform_device *pdev;
 	struct cec_adapter *cec_adap;
 	struct rc_dev *irda_rc;
+	char irda_input_name[32];
 	char irda_input_phys[32];
 	int irq;
 };
@@ -429,9 +430,12 @@ static int secocec_irda_probe(void *priv)
 		return -ENOMEM;
 	}
 
+	snprintf(cec->irda_input_name, sizeof(cec->irda_input_name),
+		 "RC for %s", dev_name(dev));
 	snprintf(cec->irda_input_phys, sizeof(cec->irda_input_phys),
 		 "%s/input0", dev_name(dev));
 
+	cec->irda_rc->device_name = cec->irda_input_name;
 	cec->irda_rc->input_phys = cec->irda_input_phys;
 	cec->irda_rc->input_id.bustype = BUS_CEC;
 	cec->irda_rc->input_id.vendor = 0;
