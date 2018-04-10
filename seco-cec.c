@@ -285,11 +285,7 @@ static int secocec_tx_done(struct cec_adapter *adap, unsigned short status_val)
 	int status = 0;
 
 	if (status_val & CEC_STATUS_TX_ERROR_MASK) {
-		if (status_val & CEC_STATUS_TX_LINE_ERROR) {
-			cec_transmit_done(adap, CEC_TX_STATUS_ARB_LOST, 1, 0, 0,
-					  0);
-			status = -EBUSY;
-		} else if (status_val & CEC_STATUS_TX_NACK_ERROR) {
+		if (status_val & CEC_STATUS_TX_NACK_ERROR) {
 			cec_transmit_done(adap, CEC_TX_STATUS_NACK, 0, 1, 0, 0);
 			status = -EAGAIN;
 		} else {
@@ -303,7 +299,7 @@ static int secocec_tx_done(struct cec_adapter *adap, unsigned short status_val)
 
 	/* Reset status reg */
 	status_val = CEC_STATUS_TX_ERROR_MASK | CEC_STATUS_MSG_SENT_MASK |
-	    CEC_STATUS_TX_NACK_ERROR | CEC_STATUS_TX_LINE_ERROR;
+	    CEC_STATUS_TX_NACK_ERROR;
 	smb_wr16(CEC_STATUS, status_val);
 
 	return status;
@@ -317,9 +313,15 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short status_val)
 	u8 i;
 	u8 payload_len, payload_id_len = 0;
 	u8 *payload_msg;
+	bool flag_overflow = false;
 
 	int status;
 	unsigned short val = 0;
+
+	if (status_val & CEC_STATUS_RX_OVERFLOW_MASK) {
+		dev_warn(dev, "Message received with more of 16 bytes. Overflowing bytes are been discarded");
+		flag_overflow = true;
+	}
 
 	if (status_val & CEC_STATUS_RX_ERROR_MASK) {
 		dev_warn(dev, "Message received with errors. Discarding");
@@ -383,6 +385,9 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short status_val)
 
 	/* Reset status reg */
 	status_val = CEC_STATUS_MSG_RECEIVED_MASK;
+	if (flag_overflow)
+		status_val |= CEC_STATUS_RX_OVERFLOW_MASK;
+	
 	status = smb_wr16(CEC_STATUS, status_val);
 	if (status)
 		goto err;
@@ -394,6 +399,8 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short status_val)
 rxerr:
 	/* Reset error reg */
 	status_val = CEC_STATUS_MSG_RECEIVED_MASK | CEC_STATUS_RX_ERROR_MASK;
+	if (flag_overflow)
+		status_val |= CEC_STATUS_RX_OVERFLOW_MASK;
 	smb_wr16(CEC_STATUS, status_val);
 
 err:
