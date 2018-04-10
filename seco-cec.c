@@ -493,7 +493,7 @@ static int secocec_irda_rx(struct secocec_data *priv)
 	struct secocec_data *cec = priv;
 	struct device *dev = cec->dev;
 	unsigned short val;
-	int status, key, toggle;
+	unsigned short status, key, addr, toggle;
 
 	if (!cec->irda_rc)
 		return -ENODEV;
@@ -503,11 +503,13 @@ static int secocec_irda_rx(struct secocec_data *priv)
 		goto err;
 
 	key = val & IRDA_COMMAND_MASK;
+	addr = (val & IRDA_ADDRESS_MASK) >> IRDA_ADDRESS_SHL;
 	toggle = (val & IRDA_TOGGLE_MASK) >> IRDA_TOGGLE_SHL;
 
 	rc_keydown(cec->irda_rc, RC_PROTO_RC5, key, toggle);
 
-	dev_dbg(dev, "IRDA key pressed: 0x%04x toggle 0x%04x", key, toggle);
+	dev_dbg(dev, "IRDA key pressed: 0x%02x addr 0x%02x toggle 0x%02x", key,
+		addr, toggle);
 
 	return 0;
 
