@@ -442,7 +442,7 @@ static int secocec_irda_probe(void *priv)
 	cec->irda_rc->input_id.product = 0;
 	cec->irda_rc->input_id.version = 1;
 	cec->irda_rc->driver_name = SECOCEC_DEV_NAME;
-	cec->irda_rc->allowed_protocols = RC_PROTO_RC5;
+	cec->irda_rc->allowed_protocols = RC_PROTO_BIT_RC5;
 	cec->irda_rc->priv = cec;
 	cec->irda_rc->map_name = RC_MAP_RC5_TV;
 	cec->irda_rc->timeout = MS_TO_NS(100);
