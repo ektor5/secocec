@@ -431,7 +431,7 @@ static int secocec_irda_probe(void *priv)
 	}
 
 	snprintf(cec->irda_input_name, sizeof(cec->irda_input_name),
-		 "RC for %s", dev_name(dev));
+		 "IrDA RC for %s", dev_name(dev));
 	snprintf(cec->irda_input_phys, sizeof(cec->irda_input_phys),
 		 "%s/input0", dev_name(dev));
 
@@ -443,8 +443,9 @@ static int secocec_irda_probe(void *priv)
 	cec->irda_rc->input_id.version = 1;
 	cec->irda_rc->driver_name = SECOCEC_DEV_NAME;
 	cec->irda_rc->allowed_protocols = RC_PROTO_BIT_RC5;
+	cec->irda_rc->enabled_protocols = RC_PROTO_BIT_RC5;
 	cec->irda_rc->priv = cec;
-	cec->irda_rc->map_name = RC_MAP_RC5_TV;
+	cec->irda_rc->map_name = RC_MAP_HAUPPAUGE;
 	cec->irda_rc->timeout = MS_TO_NS(100);
 
 	/* Clear the status register */
