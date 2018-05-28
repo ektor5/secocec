@@ -140,9 +140,11 @@
 
 #define IRDA_READ_DATA			0x3e
 
-//
-// IRDA
-//
+
+/*
+ * IRDA
+ */
+
 #define IRDA_COMMAND_MASK		0x007F
 #define IRDA_COMMAND_SHL		0
 #define IRDA_ADDRESS_MASK		0x1F00
