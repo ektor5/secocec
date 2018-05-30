@@ -68,9 +68,9 @@ When loaded, the CEC framework will spawn an RC input device for the RC
 Passthrough Feature. It can be managed with the IR framework and tools (eg.:
 `ir-keytable`).
 
-## IrDA
+## Consumer IR
 
-The driver manages also the IrDA receiver, when loaded it will generate
+The driver manages also the IR receiver, when loaded it will generate
 automatically an RC input device.
 
 It can be managed via `ir-keytable` as well.
