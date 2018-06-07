@@ -32,9 +32,11 @@ struct secocec_data {
 	struct platform_device *pdev;
 	struct cec_adapter *cec_adap;
 	struct cec_notifier *notifier;
+	struct rc_dev *irda_rc;
+	char irda_input_name[32];
+	char irda_input_phys[32];
 	int irq;
 };
-
 
 #define smb_wr16(cmd, data) smb_word_op(CMD_WORD_DATA, MICRO_ADDRESS, \
 					     cmd, data, SMBUS_WRITE, NULL)
@@ -64,7 +66,7 @@ static int smb_word_op(short data_format,
 
 	/* Request SMBus regions */
 	if (!request_muxed_region(BRA_SMB_BASE_ADDR, 7, "CEC00001")) {
-		pr_debug("%s: request_region BRA_SMB_BASE_ADDR fail\n, __func__");
+		pr_debug("%s: request_region BRA_SMB_BASE_ADDR fail\n", __func__);
 		return -ENXIO;
 	}
 
@@ -77,7 +79,7 @@ static int smb_word_op(short data_format,
 	if (count > SMBTIMEOUT) {
 		/* Reset the lock instead of failing */
 		outb(0xff, HSTS);
-		pr_warn("%s: SMBTIMEOUT\n",__func__);
+		pr_warn("%s: SMBTIMEOUT\n", __func__);
 	}
 
 	outb(0x00, HCNT);
@@ -89,7 +91,7 @@ static int smb_word_op(short data_format,
 		outb((unsigned char)data, HDAT0);
 		outb((unsigned char)(data >> 8), HDAT1);
 		pr_debug("%s: WRITE (0x%02x - count %05d): 0x%04x\n",
-			 , __func__, cmd, count, data);
+			 __func__, cmd, count, data);
 	}
 
 	outb(BRA_START + _data_format, HCNT);
@@ -107,7 +109,7 @@ static int smb_word_op(short data_format,
 
 	ret = inb(HSTS);
 	if (ret & BRA_HSTS_ERR_MASK) {
-		pr_debug("%s: HSTS(0x%02X): 0x%X\n", cmd, ret, __func__);
+		pr_debug("%s: HSTS(0x%02X): 0x%X\n", __func__, cmd, ret);
 		status = -EIO;
 		goto err;
 	}
@@ -115,7 +117,7 @@ static int smb_word_op(short data_format,
 	if (operation == SMBUS_READ) {
 		*result = ((inb(HDAT0) & 0xff) + ((inb(HDAT1) & 0xff) << 8));
 		pr_debug("%s: READ (0x%02x - count %05d): 0x%04x\n",
-			 cmd, count, *result, __func__);
+			 __func__, cmd, count, *result);
 	}
 
 err:
@@ -287,11 +289,7 @@ static int secocec_tx_done(struct cec_adapter *adap, unsigned short status_val)
 	int status = 0;
 
 	if (status_val & CEC_STATUS_TX_ERROR_MASK) {
-		if (status_val & CEC_STATUS_TX_LINE_ERROR) {
-			cec_transmit_done(adap, CEC_TX_STATUS_ARB_LOST, 1, 0, 0,
-					  0);
-			status = -EBUSY;
-		} else if (status_val & CEC_STATUS_TX_NACK_ERROR) {
+		if (status_val & CEC_STATUS_TX_NACK_ERROR) {
 			cec_transmit_done(adap, CEC_TX_STATUS_NACK, 0, 1, 0, 0);
 			status = -EAGAIN;
 		} else {
@@ -305,7 +303,7 @@ static int secocec_tx_done(struct cec_adapter *adap, unsigned short status_val)
 
 	/* Reset status reg */
 	status_val = CEC_STATUS_TX_ERROR_MASK | CEC_STATUS_MSG_SENT_MASK |
-	    CEC_STATUS_TX_NACK_ERROR | CEC_STATUS_TX_LINE_ERROR;
+	    CEC_STATUS_TX_NACK_ERROR;
 	smb_wr16(CEC_STATUS, status_val);
 
 	return status;
@@ -319,9 +317,15 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short status_val)
 	u8 i;
 	u8 payload_len, payload_id_len = 0;
 	u8 *payload_msg;
+	bool flag_overflow = false;
 
 	int status;
 	unsigned short val = 0;
+
+	if (status_val & CEC_STATUS_RX_OVERFLOW_MASK) {
+		dev_warn(dev, "Message received with more of 16 bytes. Overflowing bytes are been discarded");
+		flag_overflow = true;
+	}
 
 	if (status_val & CEC_STATUS_RX_ERROR_MASK) {
 		dev_warn(dev, "Message received with errors. Discarding");
@@ -371,8 +375,10 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short status_val)
 			/* low byte, skipping header */
 			payload_msg[(i << 1)] = val & 0x00ff;
 
-			/* hi byte */
-			payload_msg[(i << 1) + 1] = (val & 0xff00) >> 8;
+			/* hi byte, do not use if odd len */
+			if ( !(payload_len % 2) ) {
+				payload_msg[(i << 1) + 1] = (val & 0xff00) >> 8;
+			}
 		}
 	}
 
@@ -383,6 +389,9 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short status_val)
 
 	/* Reset status reg */
 	status_val = CEC_STATUS_MSG_RECEIVED_MASK;
+	if (flag_overflow)
+		status_val |= CEC_STATUS_RX_OVERFLOW_MASK;
+	
 	status = smb_wr16(CEC_STATUS, status_val);
 	if (status)
 		goto err;
@@ -394,6 +403,8 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short status_val)
 rxerr:
 	/* Reset error reg */
 	status_val = CEC_STATUS_MSG_RECEIVED_MASK | CEC_STATUS_RX_ERROR_MASK;
+	if (flag_overflow)
+		status_val |= CEC_STATUS_RX_OVERFLOW_MASK;
 	smb_wr16(CEC_STATUS, status_val);
 
 err:
@@ -408,11 +419,113 @@ struct cec_adap_ops secocec_cec_adap_ops = {
 	.adap_transmit = secocec_adap_transmit,
 };
 
+static int secocec_irda_probe(void *priv)
+{
+	struct secocec_data *cec = priv;
+	struct device *dev = cec->dev;
+	unsigned short val;
+	int status;
+
+	/* Prepare the RC input device */
+	cec->irda_rc = devm_rc_allocate_device(dev, RC_DRIVER_SCANCODE);
+	if (!cec->irda_rc) {
+		dev_err(dev, "Failed to allocate memory for rc_dev");
+		return -ENOMEM;
+	}
+
+	snprintf(cec->irda_input_name, sizeof(cec->irda_input_name),
+		 "IrDA RC for %s", dev_name(dev));
+	snprintf(cec->irda_input_phys, sizeof(cec->irda_input_phys),
+		 "%s/input0", dev_name(dev));
+
+	cec->irda_rc->device_name = cec->irda_input_name;
+	cec->irda_rc->input_phys = cec->irda_input_phys;
+	cec->irda_rc->input_id.bustype = BUS_CEC;
+	cec->irda_rc->input_id.vendor = 0;
+	cec->irda_rc->input_id.product = 0;
+	cec->irda_rc->input_id.version = 1;
+	cec->irda_rc->driver_name = SECOCEC_DEV_NAME;
+	cec->irda_rc->allowed_protocols = RC_PROTO_BIT_RC5;
+	cec->irda_rc->enabled_protocols = RC_PROTO_BIT_RC5;
+	cec->irda_rc->priv = cec;
+	cec->irda_rc->map_name = RC_MAP_HAUPPAUGE;
+	cec->irda_rc->timeout = MS_TO_NS(100);
+
+	/* Clear the status register */
+	status = smb_rd16(STATUS_REGISTER_1, &val);
+	if (status != 0)
+		goto err;
+
+	status = smb_wr16(STATUS_REGISTER_1, val);
+	if (status != 0)
+		goto err;
+
+	/* Enable the interrupts */
+	status = smb_rd16(ENABLE_REGISTER_1, &val);
+	if (status != 0)
+		goto err;
+
+	status = smb_wr16(ENABLE_REGISTER_1,
+			  val | ENABLE_REGISTER_1_IRDA_RC5);
+	if (status != 0)
+		goto err;
+
+	dev_dbg(dev, "IRDA enabled");
+
+	status = devm_rc_register_device(dev, cec->irda_rc);
+
+	if (status) {
+		dev_err(dev, "Failed to prepare input device");
+		cec->irda_rc = NULL;
+		goto err;
+	}
+
+	return 0;
+
+err:
+	smb_rd16(ENABLE_REGISTER_1, &val);
+
+	smb_wr16(ENABLE_REGISTER_1,
+		 val & ~ENABLE_REGISTER_1_IRDA_RC5);
+
+	dev_dbg(dev, "IRDA disabled");
+	return status;
+}
+
+static int secocec_irda_rx(struct secocec_data *priv)
+{
+	struct secocec_data *cec = priv;
+	struct device *dev = cec->dev;
+	unsigned short val;
+	unsigned short status, key, addr, toggle;
+
+	if (!cec->irda_rc)
+		return -ENODEV;
+
+	status = smb_rd16(IRDA_READ_DATA, &val);
+	if (status != 0)
+		goto err;
+
+	key = val & IRDA_COMMAND_MASK;
+	addr = (val & IRDA_ADDRESS_MASK) >> IRDA_ADDRESS_SHL;
+	toggle = (val & IRDA_TOGGLE_MASK) >> IRDA_TOGGLE_SHL;
+
+	rc_keydown(cec->irda_rc, RC_PROTO_RC5, key, toggle);
+
+	dev_dbg(dev, "IRDA key pressed: 0x%02x addr 0x%02x toggle 0x%02x", key,
+		addr, toggle);
+
+	return 0;
+
+err:
+	dev_err(dev, "IRDA Receive message failed (%d)", status);
+	return -EIO;
+}
+
 static irqreturn_t secocec_irq_handler(int irq, void *priv)
 {
 	struct secocec_data *cec = priv;
 	struct device *dev = cec->dev;
-
 	int status;
 	unsigned short status_val, cec_val, val = 0;
 
@@ -446,7 +559,8 @@ static irqreturn_t secocec_irq_handler(int irq, void *priv)
 	if (status_val & STATUS_REGISTER_1_IRDA_RC5) {
 		dev_dbg(dev, "IRDA RC5 Interrupt Caught");
 		val |= STATUS_REGISTER_1_IRDA_RC5;
-		//TODO IRDA RX
+
+		secocec_irda_rx(cec);
 	}
 
 	/*  Reset status register */
@@ -592,6 +706,8 @@ static int secocec_probe(struct platform_device *pdev)
 
 	cec_register_cec_notifier(secocec->cec_adap, secocec->notifier);
 
+	secocec_irda_probe(secocec);
+
 	platform_set_drvdata(pdev, secocec);
 
 	dev_dbg(dev, "Device registered");
@@ -611,9 +727,21 @@ err:
 static int secocec_remove(struct platform_device *pdev)
 {
 	struct secocec_data *secocec = platform_get_drvdata(pdev);
+	unsigned short val;
+
+	if (secocec->irda_rc) {
+		smb_rd16(ENABLE_REGISTER_1, &val);
+
+		smb_wr16(ENABLE_REGISTER_1,
+			 val & ~ENABLE_REGISTER_1_IRDA_RC5);
+
+		dev_dbg(&pdev->dev, "IRDA disabled");
+	}
 
 	cec_unregister_adapter(secocec->cec_adap);
 	cec_notifier_put(secocec->notifier);
+
+	dev_dbg(&pdev->dev, "CEC device removed");
 
 	return 0;
 }

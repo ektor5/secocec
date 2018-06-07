@@ -19,7 +19,7 @@ modules_install:
 
 clean:
 	rm -rf *.o *~ core .depend .*.cmd *.ko *.mod.c .tmp_versions \
-	modules.order Module.symvers *.tmp *.log
+	modules.order Module.symvers *.tmp *.log cache.mk
 
 _src = seco-cec.c seco-cec.h
 
