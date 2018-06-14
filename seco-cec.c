@@ -16,11 +16,11 @@
 
 #include <linux/interrupt.h>
 #include <linux/gpio.h>
+#include <linux/gpio/consumer.h>
 #include <linux/acpi.h>
 #include <linux/platform_device.h>
 #include <linux/delay.h>
-#include <linux/pci.h>
-#include <drm/drmP.h>
+#include <linux/dmi.h>
 
 /* CEC Framework */
 #include <media/cec.h>
@@ -376,7 +376,7 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short status_val)
 			payload_msg[(i << 1)] = val & 0x00ff;
 
 			/* hi byte, do not use if odd len */
-			if ( !(payload_len % 2) ) {
+			if (!(payload_len % 2)) {
 				payload_msg[(i << 1) + 1] = (val & 0xff00) >> 8;
 			}
 		}
@@ -391,7 +391,7 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short status_val)
 	status_val = CEC_STATUS_MSG_RECEIVED_MASK;
 	if (flag_overflow)
 		status_val |= CEC_STATUS_RX_OVERFLOW_MASK;
-	
+
 	status = smb_wr16(CEC_STATUS, status_val);
 	if (status)
 		goto err;
@@ -587,6 +587,36 @@ static irqreturn_t secocec_irq_handler_quick(int irq, void *priv)
 	return IRQ_WAKE_THREAD;
 }
 
+struct cec_dmi_match {
+	char *sys_vendor;
+	char *product_name;
+	char *devname;
+	char *conn;
+};
+
+static const struct cec_dmi_match secocec_dmi_match_table[] = {
+	/* UDOO X86 */
+	{ "SECO", "UDOO x86", "0000:00:02.0", "HDMI-A-1" },
+};
+
+static int secocec_cec_get_notifier(struct cec_notifier **notify)
+{
+	int i;
+
+	for (i = 0 ; i < ARRAY_SIZE(secocec_dmi_match_table) ; ++i) {
+		const struct cec_dmi_match *m = &secocec_dmi_match_table[i];
+
+		if (dmi_match(DMI_SYS_VENDOR, m->sys_vendor) &&
+		    dmi_match(DMI_PRODUCT_NAME, m->product_name)) {
+			pr_debug("%s: Found %s!!\n", __func__, m->product_name);
+			*notify = cec_notifier_get_byname(m->devname, m->conn);
+			return 0;
+		}
+	}
+
+	return -EINVAL;
+}
+
 static int secocec_acpi_probe(struct secocec_data *sdev)
 {
 	struct device *dev = sdev->dev;
@@ -615,11 +645,9 @@ static int secocec_probe(struct platform_device *pdev)
 {
 	struct secocec_data *secocec;
 	struct device *dev = &pdev->dev;
-	struct pci_dev *gpu_dev;
-	struct drm_device *hdmi_dev;
 
 	int ret;
-	u8 opts;
+	u8 cec_caps;
 	u16 val;
 
 	secocec = devm_kzalloc(dev, sizeof(*secocec), GFP_KERNEL);
@@ -630,22 +658,6 @@ static int secocec_probe(struct platform_device *pdev)
 
 	secocec->pdev = pdev;
 	secocec->dev = dev;
-
-	dev_dbg(dev, "Searching for gpu...");
-	gpu_dev = pci_get_device(0x8086, 0x22b1, NULL);
-	if (!gpu_dev)
-		return -ENODEV;
-	dev_dbg(dev, "Found!");
-
-	dev_dbg(dev, "Searching for drm drvdata...");
-	hdmi_dev = pci_get_drvdata(gpu_dev);
-	if (!hdmi_dev)
-		return -ENODEV;
-	dev_dbg(dev, "Found!");
-
-	secocec->notifier = cec_notifier_get(hdmi_dev->dev);
-	if (!secocec->notifier)
-		return -ENOMEM;
 
 	if (!has_acpi_companion(dev)) {
 		dev_dbg(dev, "Cannot find any ACPI companion");
@@ -687,24 +699,38 @@ static int secocec_probe(struct platform_device *pdev)
 		ret = -EIO;
 		goto err;
 	}
+
 	/* Allocate CEC adapter */
-	opts = CEC_CAP_DEFAULTS;
+	cec_caps = CEC_CAP_DEFAULTS;
+
+	ret = secocec_cec_get_notifier(&secocec->notifier);
+	if (ret) {
+		dev_warn(dev, "no CEC notifier available\n");
+		cec_caps |= CEC_CAP_PHYS_ADDR;
+		ret = 0;
+	}
+
+	if (!secocec->notifier) {
+		dev_warn(dev, "no CEC notifier found\n");
+		return -EPROBE_DEFER;
+	}
 
 	secocec->cec_adap = cec_allocate_adapter(&secocec_cec_adap_ops,
 						 secocec,
 						 dev_name(dev),
-						 opts, SECOCEC_MAX_ADDRS);
+						 cec_caps, SECOCEC_MAX_ADDRS);
 
-	if (IS_ERR(secocec->cec_adap))
+	if (IS_ERR(secocec->cec_adap)) {
 		ret = PTR_ERR(secocec->cec_adap);
-	if (ret)
 		goto err;
+	}
 
 	ret = cec_register_adapter(secocec->cec_adap, dev);
 	if (ret)
 		goto err_delete_adapter;
 
-	cec_register_cec_notifier(secocec->cec_adap, secocec->notifier);
+	if (secocec->notifier)
+		cec_register_cec_notifier(secocec->cec_adap, secocec->notifier);
 
 	secocec_irda_probe(secocec);
 
@@ -739,7 +765,9 @@ static int secocec_remove(struct platform_device *pdev)
 	}
 
 	cec_unregister_adapter(secocec->cec_adap);
-	cec_notifier_put(secocec->notifier);
+
+	if (secocec->notifier)
+		cec_notifier_put(secocec->notifier);
 
 	dev_dbg(&pdev->dev, "CEC device removed");
 
