@@ -372,10 +372,8 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short status_val)
 			/* low byte, skipping header */
 			payload_msg[(i << 1)] = val & 0x00ff;
 
-			/* hi byte, do not use if odd len */
-			if ( !(payload_len % 2) ) {
-				payload_msg[(i << 1) + 1] = (val & 0xff00) >> 8;
-			}
+			/* hi byte */
+			payload_msg[(i << 1) + 1] = (val & 0xff00) >> 8;
 		}
 	}
 
