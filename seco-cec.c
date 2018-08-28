@@ -608,8 +608,16 @@ static int secocec_cec_get_notifier(struct cec_notifier **notify)
 
 		if (dmi_match(DMI_SYS_VENDOR, m->sys_vendor) &&
 		    dmi_match(DMI_PRODUCT_NAME, m->product_name)) {
+			struct device *d;
 			pr_debug("%s: Found %s!!\n", __func__, m->product_name);
-			*notify = cec_notifier_get_byname(m->devname, m->conn);
+
+			/* Find the device, bail out if not yet registered */
+			d = bus_find_device_by_name(&pci_bus_type, NULL,
+                                                   m->devname);
+			if (!d)
+				return -EPROBE_DEFER;
+
+			*notify = cec_notifier_get_conn(d, m->conn);
 			return 0;
 		}
 	}
