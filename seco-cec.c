@@ -68,7 +68,8 @@ static int smb_word_op(short data_format,
 
 	/* Request SMBus regions */
 	if (!request_muxed_region(BRA_SMB_BASE_ADDR, 7, "CEC00001")) {
-		pr_debug("%s: request_region BRA_SMB_BASE_ADDR fail\n", __func__);
+		pr_debug("%s: request_region BRA_SMB_BASE_ADDR fail\n",
+			 __func__);
 		return -ENXIO;
 	}
 
@@ -378,9 +379,8 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short status_val)
 			payload_msg[(i << 1)] = val & 0x00ff;
 
 			/* hi byte, do not use if odd len */
-			if (!(payload_len % 2)) {
+			if (!(payload_len % 2))
 				payload_msg[(i << 1) + 1] = (val & 0xff00) >> 8;
-			}
 		}
 	}
 
@@ -611,11 +611,10 @@ static int secocec_cec_get_notifier(struct cec_notifier **notify)
 		if (dmi_match(DMI_SYS_VENDOR, m->sys_vendor) &&
 		    dmi_match(DMI_PRODUCT_NAME, m->product_name)) {
 			struct device *d;
-			pr_debug("%s: Found %s!!\n", __func__, m->product_name);
 
 			/* Find the device, bail out if not yet registered */
 			d = bus_find_device_by_name(&pci_bus_type, NULL,
-                                                   m->devname);
+						    m->devname);
 			if (!d)
 				return -EPROBE_DEFER;
 
