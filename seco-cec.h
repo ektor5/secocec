@@ -1,4 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 AND BSD-3-Clause */
 /*
+ *
  * SECO X86 Boards CEC register defines
  *
  * Author:  Ettore Chimenti <ek5.chimenti@gmail.com>

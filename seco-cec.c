@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0 AND BSD-3-Clause
 /*
  *
  * CEC driver for SECO X86 Boards
