@@ -589,6 +589,7 @@ static irqreturn_t secocec_irq_handler_quick(int irq, void *priv)
 	return IRQ_WAKE_THREAD;
 }
 
+#ifdef CONFIG_CEC_NOTIFIER
 struct cec_dmi_match {
 	char *sys_vendor;
 	char *product_name;
@@ -625,6 +626,7 @@ static int secocec_cec_get_notifier(struct cec_notifier **notify)
 
 	return -EINVAL;
 }
+#endif
 
 static int secocec_acpi_probe(struct secocec_data *sdev)
 {
@@ -712,6 +714,7 @@ static int secocec_probe(struct platform_device *pdev)
 	/* Allocate CEC adapter */
 	cec_caps = CEC_CAP_DEFAULTS;
 
+#ifdef CONFIG_CEC_NOTIFIER
 	ret = secocec_cec_get_notifier(&secocec->notifier);
 	if (ret) {
 		dev_warn(dev, "no CEC notifier available\n");
@@ -723,6 +726,7 @@ static int secocec_probe(struct platform_device *pdev)
 		dev_warn(dev, "no CEC notifier found\n");
 		return -EPROBE_DEFER;
 	}
+#endif
 
 	secocec->cec_adap = cec_allocate_adapter(&secocec_cec_adap_ops,
 						 secocec,
