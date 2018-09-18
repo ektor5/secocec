@@ -4,14 +4,8 @@
  * SECO X86 Boards CEC register defines
  *
  * Author:  Ettore Chimenti <ek5.chimenti@gmail.com>
- * Copyright (C) 2017, SECO Srl.
- * Copyright (C) 2017, Aidilab Srl.
- *
- * This file is provided under a dual BSD/GPLv2 license.  When using or
- * redistributing this file, you may do so under either license.
- *
- * Released under the terms of 3-clause BSD License
- * Released under the terms of GNU General Public License Version 2.0
+ * Copyright (C) 2018, SECO Srl.
+ * Copyright (C) 2018, Aidilab Srl.
  *
  */
 
