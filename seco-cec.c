@@ -677,6 +677,14 @@ static int secocec_probe(struct platform_device *pdev)
 		goto err;
 	}
 
+#ifdef CONFIG_CEC_NOTIFIER
+	ret = secocec_cec_get_notifier(&secocec->notifier);
+	if (ret) {
+		dev_err(dev, "no CEC notifier available\n");
+		goto err;
+	}
+#endif
+
 	ret = devm_request_threaded_irq(dev,
 					secocec->irq,
 					NULL,
@@ -692,20 +700,6 @@ static int secocec_probe(struct platform_device *pdev)
 
 	/* Allocate CEC adapter */
 	cec_caps = CEC_CAP_DEFAULTS;
-
-#ifdef CONFIG_CEC_NOTIFIER
-	ret = secocec_cec_get_notifier(&secocec->notifier);
-	if (ret) {
-		dev_warn(dev, "no CEC notifier available\n");
-		cec_caps |= CEC_CAP_PHYS_ADDR;
-		ret = 0;
-	}
-
-	if (!secocec->notifier) {
-		dev_warn(dev, "no CEC notifier found\n");
-		return -EPROBE_DEFER;
-	}
-#endif
 
 	secocec->cec_adap = cec_allocate_adapter(&secocec_cec_adap_ops,
 						 secocec,
