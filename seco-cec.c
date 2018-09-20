@@ -568,11 +568,6 @@ err:
 	return IRQ_HANDLED;
 }
 
-static irqreturn_t secocec_irq_handler_quick(int irq, void *priv)
-{
-	return IRQ_WAKE_THREAD;
-}
-
 #ifdef CONFIG_CEC_NOTIFIER
 struct cec_dmi_match {
 	char *sys_vendor;
@@ -684,7 +679,7 @@ static int secocec_probe(struct platform_device *pdev)
 
 	ret = devm_request_threaded_irq(dev,
 					secocec->irq,
-					secocec_irq_handler_quick,
+					NULL,
 					secocec_irq_handler,
 					IRQF_TRIGGER_RISING | IRQF_ONESHOT,
 					dev_name(&pdev->dev), secocec);
