@@ -112,8 +112,8 @@
 #define RESERVED_027			0x27
 
 #define CEC_STATUS			0x28
-#define CEC_DEVICE_LA			0x29	//bit[7:0] logical Address
-#define CEC_READ_OPERATION_ID		0x2a	//bit[7:0] operationID
+#define CEC_DEVICE_LA			0x29
+#define CEC_READ_OPERATION_ID		0x2a
 #define CEC_READ_DATA_LENGTH		0x2b
 #define CEC_READ_DATA_00		0x2c
 #define CEC_READ_DATA_02		0x2d
@@ -122,8 +122,8 @@
 #define CEC_READ_DATA_08		0x30
 #define CEC_READ_DATA_10		0x31
 #define CEC_READ_DATA_12		0x32
-#define CEC_READ_BYTE0		0x33
-#define CEC_WRITE_OPERATION_ID	0x34	//bit[7:0] operationID
+#define CEC_READ_BYTE0			0x33
+#define CEC_WRITE_OPERATION_ID		0x34
 #define CEC_WRITE_DATA_LENGTH		0x35
 #define CEC_WRITE_DATA_00		0x36
 #define CEC_WRITE_DATA_02		0x37
@@ -132,7 +132,7 @@
 #define CEC_WRITE_DATA_08		0x3a
 #define CEC_WRITE_DATA_10		0x3b
 #define CEC_WRITE_DATA_12		0x3c
-#define CEC_WRITE_BYTE0		0x3d
+#define CEC_WRITE_BYTE0			0x3d
 
 #define IRDA_READ_DATA			0x3e
 
