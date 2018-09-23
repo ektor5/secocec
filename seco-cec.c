@@ -577,7 +577,7 @@ struct cec_dmi_match {
 
 static const struct cec_dmi_match secocec_dmi_match_table[] = {
 	/* UDOO X86 */
-	{ "SECO", "UDOO x86", "0000:00:02.0", "HDMI-A-1" },
+	{ "SECO", "UDOO x86", "0000:00:02.0", "Port B" },
 };
 
 static int secocec_cec_get_notifier(struct cec_notifier **notify)
