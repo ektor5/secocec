@@ -332,7 +332,7 @@ static int secocec_rx_done(struct cec_adapter *adap, unsigned short status_val)
 	dev_dbg(dev, "Incoming message (payload len %d):", val);
 
 	/* Device msg len already accounts for the header */
-	msg.len = max(val + 1, CEC_MAX_MSG_SIZE);
+	msg.len = min(val + 1, CEC_MAX_MSG_SIZE);
 
 	/* Read logical address */
 	status = smb_rd16(CEC_READ_BYTE0, &val);
