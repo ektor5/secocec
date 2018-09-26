@@ -136,7 +136,6 @@
 
 #define IRDA_READ_DATA			0x3e
 
-
 /*
  * IRDA
  */

@@ -404,6 +404,7 @@ struct cec_adap_ops secocec_cec_adap_ops = {
 	.adap_transmit = secocec_adap_transmit,
 };
 
+#ifdef CONFIG_VIDEO_SECO_RC
 static int secocec_irda_probe(void *priv)
 {
 	struct secocec_data *cec = priv;
@@ -425,7 +426,7 @@ static int secocec_irda_probe(void *priv)
 
 	cec->irda_rc->device_name = cec->irda_input_name;
 	cec->irda_rc->input_phys = cec->irda_input_phys;
-	cec->irda_rc->input_id.bustype = BUS_CEC;
+	cec->irda_rc->input_id.bustype = BUS_HOST;
 	cec->irda_rc->input_id.vendor = 0;
 	cec->irda_rc->input_id.product = 0;
 	cec->irda_rc->input_id.version = 1;
@@ -481,8 +482,7 @@ static int secocec_irda_rx(struct secocec_data *priv)
 {
 	struct secocec_data *cec = priv;
 	struct device *dev = cec->dev;
-	unsigned short val;
-	unsigned short status, key, addr, toggle;
+	unsigned short val, status, key, addr, toggle;
 
 	if (!cec->irda_rc)
 		return -ENODEV;
@@ -506,6 +506,16 @@ err:
 	dev_err(dev, "IRDA Receive message failed (%d)", status);
 	return -EIO;
 }
+#else
+static void secocec_irda_rx(struct secocec_data *priv)
+{
+}
+
+static int secocec_irda_probe(void *priv)
+{
+	return 0;
+}
+#endif
 
 static irqreturn_t secocec_irq_handler(int irq, void *priv)
 {
@@ -635,8 +645,8 @@ static int secocec_probe(struct platform_device *pdev)
 	struct secocec_data *secocec;
 	struct device *dev = &pdev->dev;
 
-	int ret;
 	u8 cec_caps;
+	int ret;
 	u16 val;
 
 	secocec = devm_kzalloc(dev, sizeof(*secocec), GFP_KERNEL);
@@ -717,7 +727,9 @@ static int secocec_probe(struct platform_device *pdev)
 	if (secocec->notifier)
 		cec_register_cec_notifier(secocec->cec_adap, secocec->notifier);
 
-	secocec_irda_probe(secocec);
+	ret = secocec_irda_probe(secocec);
+	if (ret)
+		goto err_delete_adapter;
 
 	platform_set_drvdata(pdev, secocec);
 
@@ -748,7 +760,6 @@ static int secocec_remove(struct platform_device *pdev)
 
 		dev_dbg(&pdev->dev, "IRDA disabled");
 	}
-
 	cec_unregister_adapter(secocec->cec_adap);
 
 	if (secocec->notifier)
