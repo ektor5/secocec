@@ -184,18 +184,10 @@ err:
 
 static int secocec_adap_log_addr(struct cec_adapter *adap, u8 logical_addr)
 {
-	struct secocec_data *cec = cec_get_drvdata(adap);
-	struct device *dev = cec->dev;
-	u16 val, enable_val = 0;
+	u16 enable_val = 0;
 	int status;
 
-	if (logical_addr != CEC_LOG_ADDR_INVALID) {
-		val = logical_addr;
-	} else {
-		dev_dbg(dev, "Invalid addr, resetting address");
-		val = 0xf;
-	}
-
+	/* Disable device */
 	status = smb_rd16(ENABLE_REGISTER_1, &enable_val);
 	if (status)
 		return status;
@@ -206,10 +198,11 @@ static int secocec_adap_log_addr(struct cec_adapter *adap, u8 logical_addr)
 		return status;
 
 	/* Write logical address */
-	status = smb_wr16(CEC_DEVICE_LA, val);
+	status = smb_wr16(CEC_DEVICE_LA, logical_addr);
 	if (status)
 		return status;
 
+	/* Re-enable device */
 	status = smb_wr16(ENABLE_REGISTER_1,
 			  enable_val | ENABLE_REGISTER_1_CEC);
 	if (status)
