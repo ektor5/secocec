@@ -39,11 +39,8 @@ struct secocec_data {
 #define smb_rd16(cmd, res) smb_word_op(CMD_WORD_DATA, MICRO_ADDRESS, cmd, 0, \
 				       SMBUS_READ, res)
 
-static int smb_word_op(short data_format,
-		       unsigned short slave_addr,
-		       unsigned char cmd,
-		       unsigned short data,
-		       unsigned char operation, unsigned short *result)
+static int smb_word_op(short data_format, u16 slave_addr, u8 cmd, u16 data,
+		       u8 operation, u16 *result)
 {
 	unsigned int count;
 	short _data_format;
@@ -80,13 +77,13 @@ static int smb_word_op(short data_format,
 	}
 
 	outb(0x00, HCNT);
-	outb((unsigned char)(slave_addr & 0xfe) | operation, XMIT_SLVA);
+	outb((u8)(slave_addr & 0xfe) | operation, XMIT_SLVA);
 	outb(cmd, HCMD);
 	inb(HCNT);
 
 	if (operation == SMBUS_WRITE) {
-		outb((unsigned char)data, HDAT0);
-		outb((unsigned char)(data >> 8), HDAT1);
+		outb((u8)data, HDAT0);
+		outb((u8)(data >> 8), HDAT1);
 		pr_debug("%s: WRITE (0x%02x - count %05d): 0x%04x\n",
 			 __func__, cmd, count, data);
 	}
@@ -128,7 +125,7 @@ static int secocec_adap_enable(struct cec_adapter *adap, bool enable)
 {
 	struct secocec_data *cec = adap->priv;
 	struct device *dev = cec->dev;
-	unsigned short val = 0;
+	u16 val = 0;
 	int status;
 
 	if (enable) {
@@ -187,7 +184,7 @@ static int secocec_adap_log_addr(struct cec_adapter *adap, u8 logical_addr)
 {
 	struct secocec_data *cec = adap->priv;
 	struct device *dev = cec->dev;
-	unsigned short val, enable_val = 0;
+	u16 val, enable_val = 0;
 	int status;
 
 	if (logical_addr != CEC_LOG_ADDR_INVALID) {
@@ -224,8 +221,7 @@ static int secocec_adap_transmit(struct cec_adapter *adap, u8 attempts,
 {
 	struct secocec_data *cec = adap->priv;
 	struct device *dev = cec->dev;
-	unsigned short payload_len, payload_id_len, destination = 0;
-	unsigned short val;
+	u16 payload_len, payload_id_len, destination, val = 0;
 	u8 *payload_msg;
 	int status;
 	u8 i;
@@ -276,7 +272,7 @@ err:
 	return status;
 }
 
-static int secocec_tx_done(struct cec_adapter *adap, unsigned short status_val)
+static int secocec_tx_done(struct cec_adapter *adap, u16 status_val)
 {
 	int status = 0;
 
@@ -300,18 +296,17 @@ static int secocec_tx_done(struct cec_adapter *adap, unsigned short status_val)
 	return status;
 }
 
-static int secocec_rx_done(struct cec_adapter *adap, unsigned short status_val)
+static int secocec_rx_done(struct cec_adapter *adap, u16 status_val)
 {
 	struct secocec_data *cec = adap->priv;
 	struct device *dev = cec->dev;
 	struct cec_msg msg = { };
 
 	bool flag_overflow = false;
-	unsigned short val = 0;
-	u8 payload_len = 0;
+	u8 payload_len, i = 0;
 	u8 *payload_msg;
+	u16 val = 0;
 	int status;
-	u8 i;
 
 	if (status_val & CEC_STATUS_RX_OVERFLOW_MASK) {
 		dev_warn(dev, "Received more than 16 bytes. Discarding");
@@ -409,8 +404,8 @@ static int secocec_irda_probe(void *priv)
 {
 	struct secocec_data *cec = priv;
 	struct device *dev = cec->dev;
-	unsigned short val;
 	int status;
+	u16 val;
 
 	/* Prepare the RC input device */
 	cec->irda_rc = devm_rc_allocate_device(dev, RC_DRIVER_SCANCODE);
@@ -482,7 +477,7 @@ static int secocec_irda_rx(struct secocec_data *priv)
 {
 	struct secocec_data *cec = priv;
 	struct device *dev = cec->dev;
-	unsigned short val, status, key, addr, toggle;
+	u16 val, status, key, addr, toggle;
 
 	if (!cec->irda_rc)
 		return -ENODEV;
@@ -521,7 +516,7 @@ static irqreturn_t secocec_irq_handler(int irq, void *priv)
 {
 	struct secocec_data *cec = priv;
 	struct device *dev = cec->dev;
-	unsigned short status_val, cec_val, val = 0;
+	u16 status_val, cec_val, val = 0;
 	int status;
 
 	/*  Read status register */
@@ -750,7 +745,7 @@ err:
 static int secocec_remove(struct platform_device *pdev)
 {
 	struct secocec_data *secocec = platform_get_drvdata(pdev);
-	unsigned short val;
+	u16 val;
 
 	if (secocec->irda_rc) {
 		smb_rd16(ENABLE_REGISTER_1, &val);
@@ -775,8 +770,8 @@ static int secocec_remove(struct platform_device *pdev)
 #ifdef CONFIG_PM_SLEEP
 static int secocec_suspend(struct device *dev)
 {
-	unsigned short val;
 	int status;
+	u16 val;
 
 	dev_dbg(dev, "Device going to suspend, disabling");
 
@@ -808,8 +803,8 @@ err:
 
 static int secocec_resume(struct device *dev)
 {
-	unsigned short val;
 	int status;
+	u16 val;
 
 	dev_dbg(dev, "Resuming device from suspend");
 
