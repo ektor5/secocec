@@ -34,10 +34,10 @@ struct secocec_data {
 	int irq;
 };
 
-#define smb_wr16(cmd, data) smb_word_op(CMD_WORD_DATA, MICRO_ADDRESS, \
+#define smb_wr16(cmd, data) smb_word_op(CMD_WORD_DATA, SECOCEC_MICRO_ADDRESS, \
 					     cmd, data, SMBUS_WRITE, NULL)
-#define smb_rd16(cmd, res) smb_word_op(CMD_WORD_DATA, MICRO_ADDRESS, cmd, 0, \
-				       SMBUS_READ, res)
+#define smb_rd16(cmd, res) smb_word_op(CMD_WORD_DATA, SECOCEC_MICRO_ADDRESS, \
+				       cmd, 0, SMBUS_READ, res)
 
 static int smb_word_op(short data_format, u16 slave_addr, u8 cmd, u16 data,
 		       u8 operation, u16 *result)
@@ -132,21 +132,21 @@ static int secocec_adap_enable(struct cec_adapter *adap, bool enable)
 
 	if (enable) {
 		/* Clear the status register */
-		status = smb_rd16(STATUS_REGISTER_1, &val);
+		status = smb_rd16(SECOCEC_STATUS_REG_1, &val);
 		if (status)
 			goto err;
 
-		status = smb_wr16(STATUS_REGISTER_1, val);
+		status = smb_wr16(SECOCEC_STATUS_REG_1, val);
 		if (status)
 			goto err;
 
 		/* Enable the interrupts */
-		status = smb_rd16(ENABLE_REGISTER_1, &val);
+		status = smb_rd16(SECOCEC_ENABLE_REG_1, &val);
 		if (status)
 			goto err;
 
-		status = smb_wr16(ENABLE_REGISTER_1,
-				  val | ENABLE_REGISTER_1_CEC);
+		status = smb_wr16(SECOCEC_ENABLE_REG_1,
+				  val | SECOCEC_ENABLE_REG_1_CEC);
 		if (status)
 			goto err;
 
@@ -154,22 +154,22 @@ static int secocec_adap_enable(struct cec_adapter *adap, bool enable)
 
 	} else {
 		/* Clear the status register */
-		status = smb_rd16(STATUS_REGISTER_1, &val);
+		status = smb_rd16(SECOCEC_STATUS_REG_1, &val);
 		if (status)
 			goto err;
 
-		status = smb_wr16(STATUS_REGISTER_1, val);
+		status = smb_wr16(SECOCEC_STATUS_REG_1, val);
 		if (status)
 			goto err;
 
 		/* Disable the interrupts */
-		status = smb_rd16(ENABLE_REGISTER_1, &val);
+		status = smb_rd16(SECOCEC_ENABLE_REG_1, &val);
 		if (status)
 			goto err;
 
-		status = smb_wr16(ENABLE_REGISTER_1, val &
-				  ~ENABLE_REGISTER_1_CEC &
-				  ~ENABLE_REGISTER_1_IRDA_RC5);
+		status = smb_wr16(SECOCEC_ENABLE_REG_1, val &
+				  ~SECOCEC_ENABLE_REG_1_CEC &
+				  ~SECOCEC_ENABLE_REG_1_IR);
 		if (status)
 			goto err;
 
@@ -188,23 +188,23 @@ static int secocec_adap_log_addr(struct cec_adapter *adap, u8 logical_addr)
 	int status;
 
 	/* Disable device */
-	status = smb_rd16(ENABLE_REGISTER_1, &enable_val);
+	status = smb_rd16(SECOCEC_ENABLE_REG_1, &enable_val);
 	if (status)
 		return status;
 
-	status = smb_wr16(ENABLE_REGISTER_1,
-			  enable_val & ~ENABLE_REGISTER_1_CEC);
+	status = smb_wr16(SECOCEC_ENABLE_REG_1,
+			  enable_val & ~SECOCEC_ENABLE_REG_1_CEC);
 	if (status)
 		return status;
 
 	/* Write logical address */
-	status = smb_wr16(CEC_DEVICE_LA, logical_addr);
+	status = smb_wr16(SECOCEC_DEVICE_LA, logical_addr);
 	if (status)
 		return status;
 
 	/* Re-enable device */
-	status = smb_wr16(ENABLE_REGISTER_1,
-			  enable_val | ENABLE_REGISTER_1_CEC);
+	status = smb_wr16(SECOCEC_ENABLE_REG_1,
+			  enable_val | SECOCEC_ENABLE_REG_1_CEC);
 	if (status)
 		return status;
 
@@ -225,13 +225,13 @@ static int secocec_adap_transmit(struct cec_adapter *adap, u8 attempts,
 	payload_id_len = msg->len - 1;
 
 	/* Send data length */
-	status = smb_wr16(CEC_WRITE_DATA_LENGTH, payload_id_len);
+	status = smb_wr16(SECOCEC_WRITE_DATA_LENGTH, payload_id_len);
 	if (status)
 		goto err;
 
 	/* Send Operation ID if present */
 	if (payload_id_len > 0) {
-		status = smb_wr16(CEC_WRITE_OPERATION_ID, msg->msg[1]);
+		status = smb_wr16(SECOCEC_WRITE_OPERATION_ID, msg->msg[1]);
 		if (status)
 			goto err;
 	}
@@ -249,14 +249,14 @@ static int secocec_adap_transmit(struct cec_adapter *adap, u8 attempts,
 			/* lo byte */
 			val |= payload_msg[(i << 1)];
 
-			status = smb_wr16(CEC_WRITE_DATA_00 + i, val);
+			status = smb_wr16(SECOCEC_WRITE_DATA_00 + i, val);
 			if (status)
 				goto err;
 		}
 	}
 	/* Send msg source/destination and fire msg */
 	destination = msg->msg[0];
-	status = smb_wr16(CEC_WRITE_BYTE0, destination);
+	status = smb_wr16(SECOCEC_WRITE_BYTE0, destination);
 	if (status)
 		goto err;
 
@@ -271,8 +271,8 @@ static int secocec_tx_done(struct cec_adapter *adap, u16 status_val)
 {
 	int status = 0;
 
-	if (status_val & CEC_STATUS_TX_ERROR_MASK) {
-		if (status_val & CEC_STATUS_TX_NACK_ERROR) {
+	if (status_val & SECOCEC_STATUS_TX_ERROR_MASK) {
+		if (status_val & SECOCEC_STATUS_TX_NACK_ERROR) {
 			cec_transmit_attempt_done(adap, CEC_TX_STATUS_NACK);
 			status = -EAGAIN;
 		} else {
@@ -284,9 +284,10 @@ static int secocec_tx_done(struct cec_adapter *adap, u16 status_val)
 	}
 
 	/* Reset status reg */
-	status_val = CEC_STATUS_TX_ERROR_MASK | CEC_STATUS_MSG_SENT_MASK |
-	    CEC_STATUS_TX_NACK_ERROR;
-	smb_wr16(CEC_STATUS, status_val);
+	status_val = SECOCEC_STATUS_TX_ERROR_MASK |
+		SECOCEC_STATUS_MSG_SENT_MASK |
+		SECOCEC_STATUS_TX_NACK_ERROR;
+	smb_wr16(SECOCEC_STATUS, status_val);
 
 	return status;
 }
@@ -302,19 +303,19 @@ static int secocec_rx_done(struct cec_adapter *adap, u16 status_val)
 	u16 val = 0;
 	int status;
 
-	if (status_val & CEC_STATUS_RX_OVERFLOW_MASK) {
+	if (status_val & SECOCEC_STATUS_RX_OVERFLOW_MASK) {
 		dev_warn(dev, "Received more than 16 bytes. Discarding");
 		flag_overflow = true;
 	}
 
-	if (status_val & CEC_STATUS_RX_ERROR_MASK) {
+	if (status_val & SECOCEC_STATUS_RX_ERROR_MASK) {
 		dev_warn(dev, "Message received with errors. Discarding");
 		status = -EIO;
 		goto rxerr;
 	}
 
 	/* Read message length */
-	status = smb_rd16(CEC_READ_DATA_LENGTH, &val);
+	status = smb_rd16(SECOCEC_READ_DATA_LENGTH, &val);
 	if (status)
 		goto err;
 
@@ -324,7 +325,7 @@ static int secocec_rx_done(struct cec_adapter *adap, u16 status_val)
 	msg.len = min(val + 1, CEC_MAX_MSG_SIZE);
 
 	/* Read logical address */
-	status = smb_rd16(CEC_READ_BYTE0, &val);
+	status = smb_rd16(SECOCEC_READ_BYTE0, &val);
 	if (status)
 		goto err;
 
@@ -333,7 +334,7 @@ static int secocec_rx_done(struct cec_adapter *adap, u16 status_val)
 
 	/* Read operation ID if present */
 	if (msg.len > 0) {
-		status = smb_rd16(CEC_READ_OPERATION_ID, &val);
+		status = smb_rd16(SECOCEC_READ_OPERATION_ID, &val);
 		if (status)
 			goto err;
 
@@ -347,7 +348,7 @@ static int secocec_rx_done(struct cec_adapter *adap, u16 status_val)
 
 		/* device stores 2 bytes in every 16-bit val */
 		for (i = 0; i < payload_len / 2 + payload_len % 2; i++) {
-			status = smb_rd16(CEC_READ_DATA_00 + i, &val);
+			status = smb_rd16(SECOCEC_READ_DATA_00 + i, &val);
 			if (status)
 				goto err;
 
@@ -362,11 +363,11 @@ static int secocec_rx_done(struct cec_adapter *adap, u16 status_val)
 	cec_received_msg(cec->cec_adap, &msg);
 
 	/* Reset status reg */
-	status_val = CEC_STATUS_MSG_RECEIVED_MASK;
+	status_val = SECOCEC_STATUS_MSG_RECEIVED_MASK;
 	if (flag_overflow)
-		status_val |= CEC_STATUS_RX_OVERFLOW_MASK;
+		status_val |= SECOCEC_STATUS_RX_OVERFLOW_MASK;
 
-	status = smb_wr16(CEC_STATUS, status_val);
+	status = smb_wr16(SECOCEC_STATUS, status_val);
 	if (status)
 		goto err;
 
@@ -376,10 +377,11 @@ static int secocec_rx_done(struct cec_adapter *adap, u16 status_val)
 
 rxerr:
 	/* Reset error reg */
-	status_val = CEC_STATUS_MSG_RECEIVED_MASK | CEC_STATUS_RX_ERROR_MASK;
+	status_val = SECOCEC_STATUS_MSG_RECEIVED_MASK |
+		SECOCEC_STATUS_RX_ERROR_MASK;
 	if (flag_overflow)
-		status_val |= CEC_STATUS_RX_OVERFLOW_MASK;
-	smb_wr16(CEC_STATUS, status_val);
+		status_val |= SECOCEC_STATUS_RX_OVERFLOW_MASK;
+	smb_wr16(SECOCEC_STATUS, status_val);
 
 err:
 	dev_err(dev, "Receive message failed (%d)", status);
@@ -427,25 +429,25 @@ static int secocec_irda_probe(void *priv)
 	cec->irda_rc->timeout = MS_TO_NS(100);
 
 	/* Clear the status register */
-	status = smb_rd16(STATUS_REGISTER_1, &val);
+	status = smb_rd16(SECOCEC_STATUS_REG_1, &val);
 	if (status != 0)
 		goto err;
 
-	status = smb_wr16(STATUS_REGISTER_1, val);
+	status = smb_wr16(SECOCEC_STATUS_REG_1, val);
 	if (status != 0)
 		goto err;
 
 	/* Enable the interrupts */
-	status = smb_rd16(ENABLE_REGISTER_1, &val);
+	status = smb_rd16(SECOCEC_ENABLE_REG_1, &val);
 	if (status != 0)
 		goto err;
 
-	status = smb_wr16(ENABLE_REGISTER_1,
-			  val | ENABLE_REGISTER_1_IRDA_RC5);
+	status = smb_wr16(SECOCEC_ENABLE_REG_1,
+			  val | SECOCEC_ENABLE_REG_1_IR);
 	if (status != 0)
 		goto err;
 
-	dev_dbg(dev, "IRDA enabled");
+	dev_dbg(dev, "IR enabled");
 
 	status = devm_rc_register_device(dev, cec->irda_rc);
 
@@ -458,12 +460,12 @@ static int secocec_irda_probe(void *priv)
 	return 0;
 
 err:
-	smb_rd16(ENABLE_REGISTER_1, &val);
+	smb_rd16(SECOCEC_ENABLE_REG_1, &val);
 
-	smb_wr16(ENABLE_REGISTER_1,
-		 val & ~ENABLE_REGISTER_1_IRDA_RC5);
+	smb_wr16(SECOCEC_ENABLE_REG_1,
+		 val & ~SECOCEC_ENABLE_REG_1_IR);
 
-	dev_dbg(dev, "IRDA disabled");
+	dev_dbg(dev, "IR disabled");
 	return status;
 }
 
@@ -476,23 +478,23 @@ static int secocec_irda_rx(struct secocec_data *priv)
 	if (!cec->irda_rc)
 		return -ENODEV;
 
-	status = smb_rd16(IRDA_READ_DATA, &val);
+	status = smb_rd16(SECOCEC_IR_READ_DATA, &val);
 	if (status != 0)
 		goto err;
 
-	key = val & IRDA_COMMAND_MASK;
-	addr = (val & IRDA_ADDRESS_MASK) >> IRDA_ADDRESS_SHL;
-	toggle = (val & IRDA_TOGGLE_MASK) >> IRDA_TOGGLE_SHL;
+	key = val & SECOCEC_IR_COMMAND_MASK;
+	addr = (val & SECOCEC_IR_ADDRESS_MASK) >> SECOCEC_IR_ADDRESS_SHL;
+	toggle = (val & SECOCEC_IR_TOGGLE_MASK) >> SECOCEC_IR_TOGGLE_SHL;
 
 	rc_keydown(cec->irda_rc, RC_PROTO_RC5, key, toggle);
 
-	dev_dbg(dev, "IRDA key pressed: 0x%02x addr 0x%02x toggle 0x%02x", key,
+	dev_dbg(dev, "IR key pressed: 0x%02x addr 0x%02x toggle 0x%02x", key,
 		addr, toggle);
 
 	return 0;
 
 err:
-	dev_err(dev, "IRDA Receive message failed (%d)", status);
+	dev_err(dev, "IR Receive message failed (%d)", status);
 	return -EIO;
 }
 #else
@@ -514,41 +516,41 @@ static irqreturn_t secocec_irq_handler(int irq, void *priv)
 	int status;
 
 	/*  Read status register */
-	status = smb_rd16(STATUS_REGISTER_1, &status_val);
+	status = smb_rd16(SECOCEC_STATUS_REG_1, &status_val);
 	if (status)
 		goto err;
 
-	if (status_val & STATUS_REGISTER_1_CEC) {
+	if (status_val & SECOCEC_STATUS_REG_1_CEC) {
 		dev_dbg(dev, "+++++ CEC Interrupt Caught");
 
 		/* Read CEC status register */
-		status = smb_rd16(CEC_STATUS, &cec_val);
+		status = smb_rd16(SECOCEC_STATUS, &cec_val);
 		if (status)
 			goto err;
 
-		if (cec_val & CEC_STATUS_MSG_RECEIVED_MASK)
+		if (cec_val & SECOCEC_STATUS_MSG_RECEIVED_MASK)
 			secocec_rx_done(cec->cec_adap, cec_val);
 
-		if (cec_val & CEC_STATUS_MSG_SENT_MASK)
+		if (cec_val & SECOCEC_STATUS_MSG_SENT_MASK)
 			secocec_tx_done(cec->cec_adap, cec_val);
 
-		if ((~cec_val & CEC_STATUS_MSG_SENT_MASK) &&
-		    (~cec_val & CEC_STATUS_MSG_RECEIVED_MASK))
+		if ((~cec_val & SECOCEC_STATUS_MSG_SENT_MASK) &&
+		    (~cec_val & SECOCEC_STATUS_MSG_RECEIVED_MASK))
 			dev_warn(dev,
 				 "Message not received or sent, but interrupt fired \\_\"._/");
 
-		val = STATUS_REGISTER_1_CEC;
+		val = SECOCEC_STATUS_REG_1_CEC;
 	}
 
-	if (status_val & STATUS_REGISTER_1_IRDA_RC5) {
-		dev_dbg(dev, "IRDA RC5 Interrupt Caught");
-		val |= STATUS_REGISTER_1_IRDA_RC5;
+	if (status_val & SECOCEC_STATUS_REG_1_IR) {
+		dev_dbg(dev, "IR RC5 Interrupt Caught");
+		val |= SECOCEC_STATUS_REG_1_IR;
 
 		secocec_irda_rx(cec);
 	}
 
 	/*  Reset status register */
-	status = smb_wr16(STATUS_REGISTER_1, val);
+	status = smb_wr16(SECOCEC_STATUS_REG_1, val);
 	if (status)
 		goto err;
 
@@ -560,8 +562,8 @@ err:
 	dev_err(dev, "IRQ: Read/Write SMBus operation failed (%d)", status);
 
 	/*  Reset status register */
-	val = STATUS_REGISTER_1_CEC | STATUS_REGISTER_1_IRDA_RC5;
-	smb_wr16(STATUS_REGISTER_1, val);
+	val = SECOCEC_STATUS_REG_1_CEC | SECOCEC_STATUS_REG_1_IR;
+	smb_wr16(SECOCEC_STATUS_REG_1, val);
 
 	return IRQ_HANDLED;
 }
@@ -662,7 +664,7 @@ static int secocec_probe(struct platform_device *pdev)
 	dev_dbg(dev, "IRQ detected at %d", secocec->irq);
 
 	/* Firmware version check */
-	ret = smb_rd16(VERSION, &val);
+	ret = smb_rd16(SECOCEC_VERSION, &val);
 	if (ret) {
 		dev_err(dev, "Cannot check fw version");
 		goto err;
@@ -741,12 +743,12 @@ static int secocec_remove(struct platform_device *pdev)
 	u16 val;
 
 	if (secocec->irda_rc) {
-		smb_rd16(ENABLE_REGISTER_1, &val);
+		smb_rd16(SECOCEC_ENABLE_REG_1, &val);
 
-		smb_wr16(ENABLE_REGISTER_1,
-			 val & ~ENABLE_REGISTER_1_IRDA_RC5);
+		smb_wr16(SECOCEC_ENABLE_REG_1,
+			 val & ~SECOCEC_ENABLE_REG_1_IR);
 
-		dev_dbg(&pdev->dev, "IRDA disabled");
+		dev_dbg(&pdev->dev, "IR disabled");
 	}
 	cec_unregister_adapter(secocec->cec_adap);
 
@@ -769,21 +771,21 @@ static int secocec_suspend(struct device *dev)
 	dev_dbg(dev, "Device going to suspend, disabling");
 
 	/* Clear the status register */
-	status = smb_rd16(STATUS_REGISTER_1, &val);
+	status = smb_rd16(SECOCEC_STATUS_REG_1, &val);
 	if (status)
 		goto err;
 
-	status = smb_wr16(STATUS_REGISTER_1, val);
+	status = smb_wr16(SECOCEC_STATUS_REG_1, val);
 	if (status)
 		goto err;
 
 	/* Disable the interrupts */
-	status = smb_rd16(ENABLE_REGISTER_1, &val);
+	status = smb_rd16(SECOCEC_ENABLE_REG_1, &val);
 	if (status)
 		goto err;
 
-	status = smb_wr16(ENABLE_REGISTER_1, val &
-			  ~ENABLE_REGISTER_1_CEC & ~ENABLE_REGISTER_1_IRDA_RC5);
+	status = smb_wr16(SECOCEC_ENABLE_REG_1, val &
+			  ~SECOCEC_ENABLE_REG_1_CEC & ~SECOCEC_ENABLE_REG_1_IR);
 	if (status)
 		goto err;
 
@@ -802,20 +804,20 @@ static int secocec_resume(struct device *dev)
 	dev_dbg(dev, "Resuming device from suspend");
 
 	/* Clear the status register */
-	status = smb_rd16(STATUS_REGISTER_1, &val);
+	status = smb_rd16(SECOCEC_STATUS_REG_1, &val);
 	if (status)
 		goto err;
 
-	status = smb_wr16(STATUS_REGISTER_1, val);
+	status = smb_wr16(SECOCEC_STATUS_REG_1, val);
 	if (status)
 		goto err;
 
 	/* Enable the interrupts */
-	status = smb_rd16(ENABLE_REGISTER_1, &val);
+	status = smb_rd16(SECOCEC_ENABLE_REG_1, &val);
 	if (status)
 		goto err;
 
-	status = smb_wr16(ENABLE_REGISTER_1, val | ENABLE_REGISTER_1_CEC);
+	status = smb_wr16(SECOCEC_ENABLE_REG_1, val | SECOCEC_ENABLE_REG_1_CEC);
 	if (status)
 		goto err;
 
