@@ -125,7 +125,7 @@ err:
 
 static int secocec_adap_enable(struct cec_adapter *adap, bool enable)
 {
-	struct secocec_data *cec = adap->priv;
+	struct secocec_data *cec = cec_get_drvdata(adap);
 	struct device *dev = cec->dev;
 	u16 val = 0;
 	int status;
@@ -184,7 +184,7 @@ err:
 
 static int secocec_adap_log_addr(struct cec_adapter *adap, u8 logical_addr)
 {
-	struct secocec_data *cec = adap->priv;
+	struct secocec_data *cec = cec_get_drvdata(adap);
 	struct device *dev = cec->dev;
 	u16 val, enable_val = 0;
 	int status;
@@ -221,7 +221,7 @@ static int secocec_adap_log_addr(struct cec_adapter *adap, u8 logical_addr)
 static int secocec_adap_transmit(struct cec_adapter *adap, u8 attempts,
 				 u32 signal_free_time, struct cec_msg *msg)
 {
-	struct secocec_data *cec = adap->priv;
+	struct secocec_data *cec = cec_get_drvdata(adap);
 	struct device *dev = cec->dev;
 	u16 payload_len, payload_id_len, destination, val = 0;
 	u8 *payload_msg;
@@ -300,7 +300,7 @@ static int secocec_tx_done(struct cec_adapter *adap, u16 status_val)
 
 static int secocec_rx_done(struct cec_adapter *adap, u16 status_val)
 {
-	struct secocec_data *cec = adap->priv;
+	struct secocec_data *cec = cec_get_drvdata(adap);
 	struct device *dev = cec->dev;
 	struct cec_msg msg = { };
 
