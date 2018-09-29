@@ -65,8 +65,9 @@ static int smb_word_op(short data_format, u16 slave_addr, u8 cmd, u16 data,
 	}
 
 	/* Active wait until ready */
-	for (count = 0; (count <= SMBTIMEOUT) && (inb(HSTS) & BRA_INUSE_STS);
-	     ++count) {
+	for (count = 0; count <= SMBTIMEOUT; ++count) {
+		if (!(inb(HSTS) & BRA_INUSE_STS))
+			break;
 		udelay(SMB_POLL_UDELAY);
 	}
 
@@ -90,8 +91,9 @@ static int smb_word_op(short data_format, u16 slave_addr, u8 cmd, u16 data,
 
 	outb(BRA_START + _data_format, HCNT);
 
-	for (count = 0; (count <= SMBTIMEOUT) && ((inb(HSTS) & BRA_HOST_BUSY));
-	     count++) {
+	for (count = 0; count <= SMBTIMEOUT; count++) {
+		if (!(inb(HSTS) & BRA_HOST_BUSY))
+			break;
 		udelay(SMB_POLL_UDELAY);
 	}
 
