@@ -296,7 +296,6 @@ static int secocec_rx_done(struct cec_adapter *adap, u16 status_val)
 	struct secocec_data *cec = cec_get_drvdata(adap);
 	struct device *dev = cec->dev;
 	struct cec_msg msg = { };
-
 	bool flag_overflow = false;
 	u8 payload_len, i = 0;
 	u8 *payload_msg;
@@ -634,7 +633,6 @@ static int secocec_probe(struct platform_device *pdev)
 {
 	struct secocec_data *secocec;
 	struct device *dev = &pdev->dev;
-
 	u8 cec_caps;
 	int ret;
 	u16 val;
