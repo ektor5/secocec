@@ -57,13 +57,6 @@ static int smb_word_op(short data_format, u16 slave_addr, u8 cmd, u16 data,
 		return -EINVAL;
 	}
 
-	/* Request SMBus regions */
-	if (!request_muxed_region(BRA_SMB_BASE_ADDR, 7, "CEC00001")) {
-		pr_debug("%s: request_region BRA_SMB_BASE_ADDR fail\n",
-			 __func__);
-		return -ENXIO;
-	}
-
 	/* Active wait until ready */
 	for (count = 0; count <= SMBTIMEOUT; ++count) {
 		if (!(inb(HSTS) & BRA_INUSE_STS))
@@ -118,8 +111,6 @@ static int smb_word_op(short data_format, u16 slave_addr, u8 cmd, u16 data,
 
 err:
 	outb(0xff, HSTS);
-	release_region(BRA_SMB_BASE_ADDR, 7);
-
 	return status;
 }
 
@@ -645,6 +636,12 @@ static int secocec_probe(struct platform_device *pdev)
 
 	dev_set_drvdata(dev, secocec);
 
+	/* Request SMBus regions */
+	if (!request_muxed_region(BRA_SMB_BASE_ADDR, 7, "CEC00001")) {
+		dev_err(dev, "Request memory region failed");
+		return -ENXIO;
+	}
+
 	secocec->pdev = pdev;
 	secocec->dev = dev;
 
@@ -754,6 +751,8 @@ static int secocec_remove(struct platform_device *pdev)
 
 	if (secocec->notifier)
 		cec_notifier_put(secocec->notifier);
+
+	release_region(BRA_SMB_BASE_ADDR, 7);
 
 	dev_dbg(&pdev->dev, "CEC device removed");
 
