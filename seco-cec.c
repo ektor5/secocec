@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0 AND BSD-3-Clause
 /*
- *
  * CEC driver for SECO X86 Boards
  *
  * Author:  Ettore Chimenti <ek5.chimenti@gmail.com>
  * Copyright (C) 2018, SECO Srl.
  * Copyright (C) 2018, Aidilab Srl.
- *
  */
 
 #include <linux/interrupt.h>
@@ -78,8 +76,6 @@ static int smb_word_op(short data_format, u16 slave_addr, u8 cmd, u16 data,
 	if (operation == SMBUS_WRITE) {
 		outb((u8)data, HDAT0);
 		outb((u8)(data >> 8), HDAT1);
-		pr_debug("%s: WRITE (0x%02x - count %05d): 0x%04x\n",
-			 __func__, cmd, count, data);
 	}
 
 	outb(BRA_START + _data_format, HCNT);
@@ -97,16 +93,12 @@ static int smb_word_op(short data_format, u16 slave_addr, u8 cmd, u16 data,
 	}
 
 	if (inb(HSTS) & BRA_HSTS_ERR_MASK) {
-		pr_debug("%s: HSTS(0x%02X): 0x%X\n", __func__, cmd, ret);
 		status = -EIO;
 		goto err;
 	}
 
-	if (operation == SMBUS_READ) {
+	if (operation == SMBUS_READ)
 		*result = ((inb(HDAT0) & 0xff) + ((inb(HDAT1) & 0xff) << 8));
-		pr_debug("%s: READ (0x%02x - count %05d): 0x%04x\n",
-			 __func__, cmd, count, *result);
-	}
 
 err:
 	outb(0xff, HSTS);
@@ -141,7 +133,6 @@ static int secocec_adap_enable(struct cec_adapter *adap, bool enable)
 			goto err;
 
 		dev_dbg(dev, "Device enabled");
-
 	} else {
 		/* Clear the status register */
 		status = smb_rd16(SECOCEC_STATUS_REG_1, &val);
@@ -511,8 +502,6 @@ static irqreturn_t secocec_irq_handler(int irq, void *priv)
 		goto err;
 
 	if (status_val & SECOCEC_STATUS_REG_1_CEC) {
-		dev_dbg(dev, "+++++ CEC Interrupt Caught");
-
 		/* Read CEC status register */
 		status = smb_rd16(SECOCEC_STATUS, &cec_val);
 		if (status)
@@ -527,7 +516,7 @@ static irqreturn_t secocec_irq_handler(int irq, void *priv)
 		if ((~cec_val & SECOCEC_STATUS_MSG_SENT_MASK) &&
 		    (~cec_val & SECOCEC_STATUS_MSG_RECEIVED_MASK))
 			dev_warn(dev,
-				 "Message not received or sent, but interrupt fired \\_\"._/");
+				 "Message not received or sent, but interrupt fired");
 
 		val = SECOCEC_STATUS_REG_1_CEC;
 	}
@@ -544,8 +533,6 @@ static irqreturn_t secocec_irq_handler(int irq, void *priv)
 	if (status)
 		goto err;
 
-	dev_dbg(dev, "----- CEC Interrupt Handled");
-
 	return IRQ_HANDLED;
 
 err:
@@ -558,7 +545,6 @@ err:
 	return IRQ_HANDLED;
 }
 
-#ifdef CONFIG_CEC_NOTIFIER
 struct cec_dmi_match {
 	char *sys_vendor;
 	char *product_name;
@@ -589,13 +575,13 @@ static int secocec_cec_get_notifier(struct cec_notifier **notify)
 				return -EPROBE_DEFER;
 
 			*notify = cec_notifier_get_conn(d, m->conn);
+
 			return 0;
 		}
 	}
 
 	return -EINVAL;
 }
-#endif
 
 static int secocec_acpi_probe(struct secocec_data *sdev)
 {
@@ -672,13 +658,11 @@ static int secocec_probe(struct platform_device *pdev)
 		goto err;
 	}
 
-#ifdef CONFIG_CEC_NOTIFIER
 	ret = secocec_cec_get_notifier(&secocec->notifier);
 	if (ret) {
 		dev_err(dev, "no CEC notifier available\n");
 		goto err;
 	}
-#endif
 
 	ret = devm_request_threaded_irq(dev,
 					secocec->irq,
@@ -731,8 +715,6 @@ err:
 	return ret;
 }
 
-/* ----------------------------------------------------------------------- */
-
 static int secocec_remove(struct platform_device *pdev)
 {
 	struct secocec_data *secocec = platform_get_drvdata(pdev);
@@ -757,8 +739,6 @@ static int secocec_remove(struct platform_device *pdev)
 
 	return 0;
 }
-
-/* ----------------------------------------------------------------------- */
 
 #ifdef CONFIG_PM_SLEEP
 static int secocec_suspend(struct device *dev)

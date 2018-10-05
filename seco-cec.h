@@ -1,12 +1,10 @@
 /* SPDX-License-Identifier: GPL-2.0 AND BSD-3-Clause */
 /*
- *
  * SECO X86 Boards CEC register defines
  *
  * Author:  Ettore Chimenti <ek5.chimenti@gmail.com>
  * Copyright (C) 2018, SECO Srl.
  * Copyright (C) 2018, Aidilab Srl.
- *
  */
 
 #ifndef __SECO_CEC_H__
