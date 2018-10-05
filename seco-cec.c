@@ -611,7 +611,6 @@ static int secocec_probe(struct platform_device *pdev)
 {
 	struct secocec_data *secocec;
 	struct device *dev = &pdev->dev;
-	u8 cec_caps;
 	int ret;
 	u16 val;
 
@@ -678,12 +677,11 @@ static int secocec_probe(struct platform_device *pdev)
 	}
 
 	/* Allocate CEC adapter */
-	cec_caps = CEC_CAP_DEFAULTS;
-
 	secocec->cec_adap = cec_allocate_adapter(&secocec_cec_adap_ops,
 						 secocec,
 						 dev_name(dev),
-						 cec_caps, SECOCEC_MAX_ADDRS);
+						 CEC_CAP_DEFAULTS,
+						 SECOCEC_MAX_ADDRS);
 
 	if (IS_ERR(secocec->cec_adap)) {
 		ret = PTR_ERR(secocec->cec_adap);
