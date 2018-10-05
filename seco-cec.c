@@ -44,7 +44,7 @@ static int smb_word_op(short data_format, u16 slave_addr, u8 cmd, u16 data,
 {
 	unsigned int count;
 	short _data_format;
-	int ret, status = 0;
+	int status = 0;
 
 	switch (data_format) {
 	case CMD_BYTE_DATA:
@@ -96,8 +96,7 @@ static int smb_word_op(short data_format, u16 slave_addr, u8 cmd, u16 data,
 		goto err;
 	}
 
-	ret = inb(HSTS);
-	if (ret & BRA_HSTS_ERR_MASK) {
+	if (inb(HSTS) & BRA_HSTS_ERR_MASK) {
 		pr_debug("%s: HSTS(0x%02X): 0x%X\n", __func__, cmd, ret);
 		status = -EIO;
 		goto err;
