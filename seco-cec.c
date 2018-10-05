@@ -312,14 +312,12 @@ static int secocec_rx_done(struct cec_adapter *adap, u16 status_val)
 	/* device stores source LA and destination */
 	msg.msg[0] = val;
 
-	/* Read operation ID if present */
-	if (msg.len > 0) {
-		status = smb_rd16(SECOCEC_READ_OPERATION_ID, &val);
-		if (status)
-			goto err;
+	/* Read operation ID */
+	status = smb_rd16(SECOCEC_READ_OPERATION_ID, &val);
+	if (status)
+		goto err;
 
-		msg.msg[1] = val;
-	}
+	msg.msg[1] = val;
 
 	/* Read data if present */
 	if (msg.len > 1) {
