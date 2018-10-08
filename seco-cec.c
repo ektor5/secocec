@@ -61,11 +61,9 @@ static int smb_word_op(short data_format, u16 slave_addr, u8 cmd, u16 data,
 		udelay(SMB_POLL_UDELAY);
 	}
 
-	if (count > SMBTIMEOUT) {
+	if (count > SMBTIMEOUT)
 		/* Reset the lock instead of failing */
 		outb(0xff, HSTS);
-		pr_warn("%s: SMBTIMEOUT\n", __func__);
-	}
 
 	outb(0x00, HCNT);
 	outb((u8)(slave_addr & 0xfe) | operation, XMIT_SLVA);
@@ -86,7 +84,6 @@ static int smb_word_op(short data_format, u16 slave_addr, u8 cmd, u16 data,
 	}
 
 	if (count > SMBTIMEOUT) {
-		pr_debug("%s: SMBTIMEOUT_1\n", __func__);
 		status = -EBUSY;
 		goto err;
 	}
