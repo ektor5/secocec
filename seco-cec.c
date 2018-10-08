@@ -296,8 +296,6 @@ static int secocec_rx_done(struct cec_adapter *adap, u16 status_val)
 	if (status)
 		goto err;
 
-	dev_dbg(dev, "Incoming message (payload len %d):", val);
-
 	/* Device msg len already accounts for the header */
 	msg.len = min(val + 1, CEC_MAX_MSG_SIZE);
 
@@ -345,8 +343,6 @@ static int secocec_rx_done(struct cec_adapter *adap, u16 status_val)
 	status = smb_wr16(SECOCEC_STATUS, status_val);
 	if (status)
 		goto err;
-
-	dev_dbg(dev, "Message received successfully");
 
 	return 0;
 
