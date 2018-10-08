@@ -219,14 +219,14 @@ static int secocec_adap_transmit(struct cec_adapter *adap, u8 attempts,
 		payload_msg = &msg->msg[2];
 
 		/* Copy message into registers */
-		for (i = 0; i < payload_len / 2 + payload_len % 2; i++) {
+		for (i = 0; i < payload_len; i += 2) {
 			/* hi byte */
-			val = payload_msg[(i << 1) + 1] << 8;
+			val = payload_msg[i + 1] << 8;
 
 			/* lo byte */
-			val |= payload_msg[(i << 1)];
+			val |= payload_msg[i];
 
-			status = smb_wr16(SECOCEC_WRITE_DATA_00 + i, val);
+			status = smb_wr16(SECOCEC_WRITE_DATA_00 + i / 2, val);
 			if (status)
 				goto err;
 		}
@@ -322,16 +322,16 @@ static int secocec_rx_done(struct cec_adapter *adap, u16 status_val)
 		payload_msg = &msg.msg[2];
 
 		/* device stores 2 bytes in every 16-bit val */
-		for (i = 0; i < payload_len / 2 + payload_len % 2; i++) {
-			status = smb_rd16(SECOCEC_READ_DATA_00 + i, &val);
+		for (i = 0; i < payload_len; i += 2) {
+			status = smb_rd16(SECOCEC_READ_DATA_00 + i / 2, &val);
 			if (status)
 				goto err;
 
 			/* low byte, skipping header */
-			payload_msg[(i << 1)] = val & 0x00ff;
+			payload_msg[i] = val & 0x00ff;
 
 			/* hi byte */
-			payload_msg[(i << 1) + 1] = (val & 0xff00) >> 8;
+			payload_msg[i + 1] = (val & 0xff00) >> 8;
 		}
 	}
 
