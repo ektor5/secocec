@@ -8,7 +8,7 @@ Compatible with:
 
 ## Compile
 
-Make sure you have Linux kernel headers >= 4.14 and the firmware version >= 1.04.
+Make sure you have Linux Kernel >= 4.19 and firmware version >= 1.04.
 Refer to [this][https://www.udoo.org/docs-x86/Advanced_Topics/UEFI_update.html] page about FW update process.
 
 ```bash

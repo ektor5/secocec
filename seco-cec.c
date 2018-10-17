@@ -3,7 +3,7 @@
  * CEC driver for SECO X86 Boards
  *
  * Author:  Ettore Chimenti <ek5.chimenti@gmail.com>
- * Copyright (C) 2018, SECO Srl.
+ * Copyright (C) 2018, SECO SpA.
  * Copyright (C) 2018, Aidilab Srl.
  */
 

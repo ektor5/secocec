@@ -3,7 +3,7 @@
  * SECO X86 Boards CEC register defines
  *
  * Author:  Ettore Chimenti <ek5.chimenti@gmail.com>
- * Copyright (C) 2018, SECO Srl.
+ * Copyright (C) 2018, SECO Spa.
  * Copyright (C) 2018, Aidilab Srl.
  */
 
