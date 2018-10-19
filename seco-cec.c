@@ -132,30 +132,19 @@ static int secocec_adap_enable(struct cec_adapter *adap, bool enable)
 	} else {
 		/* Clear the status register */
 		status = smb_rd16(SECOCEC_STATUS_REG_1, &val);
-		if (status)
-			goto err;
-
 		status = smb_wr16(SECOCEC_STATUS_REG_1, val);
-		if (status)
-			goto err;
 
 		/* Disable the interrupts */
 		status = smb_rd16(SECOCEC_ENABLE_REG_1, &val);
-		if (status)
-			goto err;
-
 		status = smb_wr16(SECOCEC_ENABLE_REG_1, val &
 				  ~SECOCEC_ENABLE_REG_1_CEC &
 				  ~SECOCEC_ENABLE_REG_1_IR);
-		if (status)
-			goto err;
 
 		dev_dbg(dev, "Device disabled");
 	}
 
 	return 0;
 err:
-	dev_err(dev, "Adapter setup failed (%d)", status);
 	return status;
 }
 
@@ -174,8 +163,10 @@ static int secocec_adap_log_addr(struct cec_adapter *adap, u8 logical_addr)
 	if (status)
 		return status;
 
-	/* Write logical address */
-	status = smb_wr16(SECOCEC_DEVICE_LA, logical_addr);
+	/* Write logical address
+	 * NOTE: CEC_LOG_ADDR_INVALID is mapped to the 'Unregistered' LA
+	 */
+	status = smb_wr16(SECOCEC_DEVICE_LA, logical_addr & 0xf);
 	if (status)
 		return status;
 
@@ -191,8 +182,6 @@ static int secocec_adap_log_addr(struct cec_adapter *adap, u8 logical_addr)
 static int secocec_adap_transmit(struct cec_adapter *adap, u8 attempts,
 				 u32 signal_free_time, struct cec_msg *msg)
 {
-	struct secocec_data *cec = cec_get_drvdata(adap);
-	struct device *dev = cec->dev;
 	u16 payload_len, payload_id_len, destination, val = 0;
 	u8 *payload_msg;
 	int status;
@@ -240,22 +229,16 @@ static int secocec_adap_transmit(struct cec_adapter *adap, u8 attempts,
 	return 0;
 
 err:
-	dev_err(dev, "Transmit failed (%d)", status);
 	return status;
 }
 
-static int secocec_tx_done(struct cec_adapter *adap, u16 status_val)
+static void secocec_tx_done(struct cec_adapter *adap, u16 status_val)
 {
-	int status = 0;
-
 	if (status_val & SECOCEC_STATUS_TX_ERROR_MASK) {
-		if (status_val & SECOCEC_STATUS_TX_NACK_ERROR) {
+		if (status_val & SECOCEC_STATUS_TX_NACK_ERROR)
 			cec_transmit_attempt_done(adap, CEC_TX_STATUS_NACK);
-			status = -EAGAIN;
-		} else {
+		else
 			cec_transmit_attempt_done(adap, CEC_TX_STATUS_ERROR);
-			status = -EIO;
-		}
 	} else {
 		cec_transmit_attempt_done(adap, CEC_TX_STATUS_OK);
 	}
@@ -265,11 +248,9 @@ static int secocec_tx_done(struct cec_adapter *adap, u16 status_val)
 		SECOCEC_STATUS_MSG_SENT_MASK |
 		SECOCEC_STATUS_TX_NACK_ERROR;
 	smb_wr16(SECOCEC_STATUS, status_val);
-
-	return status;
 }
 
-static int secocec_rx_done(struct cec_adapter *adap, u16 status_val)
+static void secocec_rx_done(struct cec_adapter *adap, u16 status_val)
 {
 	struct secocec_data *cec = cec_get_drvdata(adap);
 	struct device *dev = cec->dev;
@@ -281,6 +262,7 @@ static int secocec_rx_done(struct cec_adapter *adap, u16 status_val)
 	int status;
 
 	if (status_val & SECOCEC_STATUS_RX_OVERFLOW_MASK) {
+		/* NOTE: Untested, it also might not be necessary */
 		dev_warn(dev, "Received more than 16 bytes. Discarding");
 		flag_overflow = true;
 	}
@@ -294,7 +276,7 @@ static int secocec_rx_done(struct cec_adapter *adap, u16 status_val)
 	/* Read message length */
 	status = smb_rd16(SECOCEC_READ_DATA_LENGTH, &val);
 	if (status)
-		goto err;
+		return;
 
 	/* Device msg len already accounts for the header */
 	msg.len = min(val + 1, CEC_MAX_MSG_SIZE);
@@ -302,7 +284,7 @@ static int secocec_rx_done(struct cec_adapter *adap, u16 status_val)
 	/* Read logical address */
 	status = smb_rd16(SECOCEC_READ_BYTE0, &val);
 	if (status)
-		goto err;
+		return;
 
 	/* device stores source LA and destination */
 	msg.msg[0] = val;
@@ -310,7 +292,7 @@ static int secocec_rx_done(struct cec_adapter *adap, u16 status_val)
 	/* Read operation ID */
 	status = smb_rd16(SECOCEC_READ_OPERATION_ID, &val);
 	if (status)
-		goto err;
+		return;
 
 	msg.msg[1] = val;
 
@@ -323,7 +305,7 @@ static int secocec_rx_done(struct cec_adapter *adap, u16 status_val)
 		for (i = 0; i < payload_len; i += 2) {
 			status = smb_rd16(SECOCEC_READ_DATA_00 + i / 2, &val);
 			if (status)
-				goto err;
+				return;
 
 			/* low byte, skipping header */
 			payload_msg[i] = val & 0x00ff;
@@ -341,10 +323,8 @@ static int secocec_rx_done(struct cec_adapter *adap, u16 status_val)
 		status_val |= SECOCEC_STATUS_RX_OVERFLOW_MASK;
 
 	status = smb_wr16(SECOCEC_STATUS, status_val);
-	if (status)
-		goto err;
 
-	return 0;
+	return;
 
 rxerr:
 	/* Reset error reg */
@@ -353,10 +333,6 @@ rxerr:
 	if (flag_overflow)
 		status_val |= SECOCEC_STATUS_RX_OVERFLOW_MASK;
 	smb_wr16(SECOCEC_STATUS, status_val);
-
-err:
-	dev_err(dev, "Receive message failed (%d)", status);
-	return status;
 }
 
 struct cec_adap_ops secocec_cec_adap_ops = {
@@ -500,14 +476,13 @@ static irqreturn_t secocec_irq_handler(int irq, void *priv)
 
 		if ((~cec_val & SECOCEC_STATUS_MSG_SENT_MASK) &&
 		    (~cec_val & SECOCEC_STATUS_MSG_RECEIVED_MASK))
-			dev_warn(dev,
-				 "Message not received or sent, but interrupt fired");
+			dev_warn_once(dev,
+				      "Message not received or sent, but interrupt fired");
 
 		val = SECOCEC_STATUS_REG_1_CEC;
 	}
 
 	if (status_val & SECOCEC_STATUS_REG_1_IR) {
-		dev_dbg(dev, "IR RC5 Interrupt Caught");
 		val |= SECOCEC_STATUS_REG_1_IR;
 
 		secocec_ir_rx(cec);
@@ -521,7 +496,7 @@ static irqreturn_t secocec_irq_handler(int irq, void *priv)
 	return IRQ_HANDLED;
 
 err:
-	dev_err(dev, "IRQ: Read/Write SMBus operation failed (%d)", status);
+	dev_err_once(dev, "IRQ: R/W SMBus operation failed (%d)", status);
 
 	/*  Reset status register */
 	val = SECOCEC_STATUS_REG_1_CEC | SECOCEC_STATUS_REG_1_IR;
@@ -626,8 +601,6 @@ static int secocec_probe(struct platform_device *pdev)
 		ret = -ENODEV;
 		goto err;
 	}
-
-	dev_dbg(dev, "IRQ detected at %d", secocec->irq);
 
 	/* Firmware version check */
 	ret = smb_rd16(SECOCEC_VERSION, &val);
