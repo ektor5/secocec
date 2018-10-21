@@ -1,5 +1,6 @@
 ccflags-y+=-Wfatal-errors
 ccflags-y+=-fmax-errors=5
+ccflags-y+=-DCONFIG_VIDEO_SECO_RC
 
 ifdef DEBUG
 ccflags-y+=-DDEBUG
