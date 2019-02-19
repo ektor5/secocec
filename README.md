@@ -6,10 +6,46 @@ Compatible with:
 
 * UDOO X86 (all versions)
 
-## Compile
+## Requirements
 
-Make sure you have Linux Kernel >= 4.19 and firmware version >= 1.04.
-Refer to [this][https://www.udoo.org/docs-x86/Advanced_Topics/UEFI_update.html] page about FW update process.
+* Linux Kernel >= 4.19 with `CEC_NOTIFIER` support
+* UDOO Firmware version >= `1.06`
+Refer to [this](https://www.udoo.org/docs-x86/Advanced_Topics/UEFI_update.html) page about FW update process.
+
+In order to use the driver, there are several methods:
+* Run Linux Kernel 5.0 with `CONFIG_VIDEO_SECO_CEC` and, optionally, `CONFIG_VIDEO_SECO_RC` (for IR) enabled
+* Use DKMS (Dynamic Kernel Module System)
+* Compile and mount the module manually
+
+## DKMS
+
+DKMS is an automatic system for mounting and managing Linux external modules.
+It is really useful in case of a kernel update or for automounting the module
+at boot.
+
+```bash
+# install dependencies (make, git, ecc..)
+sudo apt install git build-essential linux-headers-`uname -r` dkms
+
+# clone repo
+git clone https://github.com/ektor5/secocec
+
+# go to dir
+cd secocec
+
+# create dkms directory
+sudo mkdir '/usr/src/secocec-1.0'
+
+# copy files
+sudo cp seco-cec.? dkms.conf Makefile '/usr/src/secocec-1.0'
+
+# install module
+sudo dkms install secocec/1.0 -k `uname -r`
+```
+
+Now at reboot the module will be mounted automatically.
+
+## Compile
 
 ```bash
 # install dependencies (make, git, ecc..)
@@ -91,5 +127,5 @@ Feel free to open issues or mail me directly. Make sure to include *dmesg*,
 Author: Ettore Chimenti  
 Thanks to: Hans Verkuil
 
-Copyright (C) 2018, Seco Srl  
-Copyright (C) 2018, Aidilab
+Copyright (C) 2019, Seco Srl  
+Copyright (C) 2019, Aidilab
