@@ -1,6 +1,8 @@
 # CEC Linux Driver for SECO X86 Boards
 
 Sources for SECO CEC Driver. Based on Linux CEC Framework.
+Compiles successfully with Linux Kernel 5.6.
+For older kernels, please checkout the corresponding tag.
 
 Compatible with:
 
@@ -13,7 +15,7 @@ Compatible with:
 Refer to [this](https://www.udoo.org/docs-x86/Advanced_Topics/UEFI_update.html) page about FW update process.
 
 In order to use the driver, there are several methods:
-* Run Linux Kernel 5.0 with `CONFIG_VIDEO_SECO_CEC` and, optionally, `CONFIG_VIDEO_SECO_RC` (for IR) enabled
+* Run Linux Kernel >=5.0 with `CONFIG_VIDEO_SECO_CEC` and, optionally, `CONFIG_VIDEO_SECO_RC` (for IR) enabled
 * Use DKMS (Dynamic Kernel Module System)
 * Compile and mount the module manually
 
@@ -127,5 +129,5 @@ Feel free to open issues or mail me directly. Make sure to include *dmesg*,
 Author: Ettore Chimenti  
 Thanks to: Hans Verkuil
 
-Copyright (C) 2019, Seco Srl  
-Copyright (C) 2019, Aidilab
+Copyright (C) 2020, Seco Spa  
+Copyright (C) 2020, Aidilab
